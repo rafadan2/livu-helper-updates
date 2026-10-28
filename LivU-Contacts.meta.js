@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LivU Contacts
 // @namespace    private.livu.helper
-// @version      2.1.3
+// @version      2.1.4
 // @updateURL    https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.meta.js
 // @downloadURL  https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.user.js
 // @connect      api.notion.com

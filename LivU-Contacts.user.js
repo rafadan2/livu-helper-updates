@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LivU Contacts
 // @namespace    private.livu.helper
-// @version      2.1.3
+// @version      2.1.4
 // @updateURL    https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.meta.js
 // @downloadURL  https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.user.js
 // @connect      api.notion.com
@@ -63,7 +63,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 // Packaged update UI and data validation. Downloaded code is never executed here.
 (() => {
   'use strict';
-  const VERSION = '2.1.3';
+  const VERSION = '2.1.4';
   const MANIFEST_URL = 'https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/update.json';
   const BASE = MANIFEST_URL.slice(0, MANIFEST_URL.lastIndexOf('/') + 1);
   const LIMIT = 32768;
@@ -162,7 +162,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 (function () {
   'use strict';
 
-  const VERSION = '2.1.3';
+  const VERSION = '2.1.4';
   const SOURCE = '02804175-f91f-4143-a2d1-c430ccbc73b3';
   const NOTION = 'https://app.notion.com/p/623001463d3e4b24b69fc3ea8cb7a564';
   const PREFIX = 'livu.contact.';
@@ -546,6 +546,36 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 
   class AccountClient extends NotionClient {
     constructor(gm, token) { super(gm, token); this.accountMode = true; }
+    async password(row) {
+      const selected = accountSnapshot({ schema_version: 1, accounts: [row] }).accounts[0];
+      if (!selected.enabled || !selected.created_at) throw new Error('Choose an enabled, created account.');
+      const page = await this.request('POST', '/data_sources/' + ACCOUNT_SOURCE + '/query', {
+        page_size: 2, filter: { and: [
+          { property: 'Number', number: { equals: selected.number } },
+          { property: 'Email', email: { equals: selected.email } },
+          { property: 'Enabled', checkbox: { equals: true } },
+          { property: 'Created', date: { is_not_empty: true } }
+        ] }
+      });
+      if (page.has_more !== false || !Array.isArray(page.results) || page.results.length !== 1) {
+        throw new Error('Notion could not uniquely match this account. Refresh accounts and check its Number and Email.');
+      }
+      const match = page.results[0], p = match?.properties;
+      if (match?.archived || match?.in_trash || !sameAccount(selected, { number: p?.Number?.number, email: p?.Email?.email }) ||
+          p?.Enabled?.checkbox !== true || !p?.Created?.date?.start) {
+        throw new Error('This account is no longer available in Notion. Refresh accounts.');
+      }
+      const properties = Object.entries(p).filter(([name]) => name.trim().toLowerCase() === 'password');
+      const value = properties[0]?.[1];
+      if (properties.length !== 1 || (value?.type && value.type !== 'rich_text') ||
+          !Array.isArray(value?.rich_text) || value.has_more === true || value.rich_text.length >= 25 ||
+          value.rich_text.some(part => typeof part?.plain_text !== 'string' || (part.type && part.type !== 'text'))) {
+        throw new Error('Use one text field named Password in the private Notion account list.');
+      }
+      const password = value.rich_text.map(part => part.plain_text).join('');
+      if (!password || password.length > 256) throw new Error('Fill this account’s Notion Password with 1–256 characters, then choose the account again.');
+      return password;
+    }
     async preflight() {
       const source = await this.request('GET', '/data_sources/' + ACCOUNT_SOURCE);
       const types = { Number: 'number', Email: 'email', Coins: 'number', Enabled: 'checkbox',
@@ -626,7 +656,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     if (!targets.email && pending && !sameAccount(pending, row)) {
       throw new Error('The email step used another account. Go back to LivU’s email step to switch accounts.');
     }
-    if (targets.password && !password) throw new Error('Set the shared LivU password for this tab first.');
+    if (targets.password && !password) throw new Error('Set the shared LivU password for this tab, or connect account Notion with a Password field.');
     if (targets.email) write(targets.email, row.email);
     if (targets.password) write(targets.password, password);
     return { email: Boolean(targets.email), password: Boolean(targets.password) };
@@ -1008,6 +1038,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   let accountCache = null, selectedAccount = null, accountBusy = false;
   let accountSyncing = false;
   let sharedPassword = '', pendingAccount = null;
+  let passwordSelectionVersion = 0, pendingPasswordTimer;
   let pendingPasswordFill = null, passwordFillBusy = false;
   let emailAnchor = null, emailQuery = '', emailLoading = false, emailOpening = 0, restoringEmailFocus = false;
   let busy = false;
@@ -1194,10 +1225,10 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   const passwordState = el('p', '', { class: 'muted' });
   const passwordActions = el('div', '', { class: 'actions' });
   passwordActions.append(button('Set password for this tab', setTabPassword), button('Forget password', () => {
-    sharedPassword = ''; pendingPasswordFill = null; updatePasswordState(); accountStatus.textContent = 'Password forgotten by this helper. Any fields already filled on LivU stay as they are.';
+    sharedPassword = ''; clearPendingPassword(); updatePasswordState(); accountStatus.textContent = 'Password forgotten by this helper. Any fields already filled on LivU stay as they are.';
   }));
   accountSettings.append(passwordState, passwordActions,
-    el('p', 'Enter your shared LivU login password here on your device. It stays in this tab’s memory until reload or close; it is never saved in the script, backups or Notion.', { class: 'muted' }));
+    el('p', 'With account Notion connected, choosing an account reads its Password text field automatically. Passwords stay out of the saved list and backups. Set a tab password only when using an offline account list.', { class: 'muted' }));
   const accountConnection = el('p', '', { class: 'muted' });
   const accountActions = el('div', '', { class: 'actions' });
   const accountSyncButton = button('Refresh coins', syncAccounts);
@@ -1213,6 +1244,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     } catch (_) { accountError('Account storage is unavailable. Reload the helper.'); }
   });
   const accountDisconnectButton = button('Disconnect accounts', () => accountAction(async () => {
+    clearPendingPassword();
     await GM.deleteValue(ACCOUNT_TOKEN); await accountSyncStatus.clear(); accountStatus.textContent = 'Account Notion disconnected. Your cached list is kept.';
   }));
   accountActions.append(accountConnectButton, accountReuseButton, accountDisconnectButton);
@@ -1231,7 +1263,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   accountSettings.append(el('label', 'Or import accounts.json', { for: 'account-import' }), importFile,
     el('p', 'Use the metadata file from LivU Helper. No password file is needed. Account sync only reads your separate private account database.', { class: 'muted' }));
   accountPanel.append(accountHeader,
-    el('p', 'Choose an account and enter the shared LivU password once per tab. Press Next; the password fills on the next sign-in screen. You press LivU’s sign-in buttons yourself.', { class: 'account-help' }),
+    el('p', 'Choose an account to fill its email and read its password from private Notion. Press Next; the password fills on the next sign-in screen. You press LivU’s sign-in buttons yourself.', { class: 'account-help' }),
     accountSyncSummary.box, accountStatus, snapshotLabel, accountSearch, accountList, accountSettings);
   const toolbar = el('div', '', { class: 'toolbar' }); toolbar.append(quickFloat, toggle, accountToggle);
   const emailPicker = el('section', '', { id: 'livu-email-accounts', class: 'email-picker', role: 'region', 'aria-label': 'Email account suggestions' });
@@ -1274,7 +1306,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   panel.append(tools); root.append(panel, accountPanel, emailTrigger, emailPicker, notice, toolbar); document.documentElement.append(host);
 
   function dateLabel(value) { return value ? new Date(value).toLocaleString() : 'unknown'; }
-  function updatePasswordState() { passwordState.textContent = sharedPassword ? 'Shared password ready for this tab.' : 'No password held in this tab. Email filling still works.'; }
+  function updatePasswordState() { passwordState.textContent = accountsConnected ? 'Password source: the selected account in private Notion.' : sharedPassword ? 'Shared password ready for this tab.' : 'No password held in this tab. Email filling still works.'; }
   function setTabPassword() {
     const value = window.prompt('Enter your shared LivU login password once for this tab. After you press Next, the helper fills the password without signing in. Cancel to fill email only. It stays only until reload or close. Do not enter a Gmail password or payment details.');
     if (value === null) return false;
@@ -1421,8 +1453,9 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   }
   function chooseAndFill(row) {
     if (accountBusy || greetingBusy) return;
-    pendingPasswordFill = null;
-    // Capture form and request a password inside the trusted tap, before any awaits.
+    clearPendingPassword();
+    const selection = passwordSelectionVersion;
+    // Capture the user's form before asynchronous storage and Notion requests.
     let targets;
     try {
       targets = loginTargets(location.href, loginFields());
@@ -1431,48 +1464,71 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
       }
     }
     catch (error) { accountError(error.message); return; }
-    if (!sharedPassword && !setTabPassword() && targets.password) return;
+    const emailValue = targets.email?.node.value, passwordValue = targets.password?.node.value;
     accountAction(async () => {
       const latest = await accountStore.load();
       if (!latest?.snapshot.accounts.some(x => sameAccount(x, row) && x.enabled && x.created_at)) throw new Error('This account is no longer available. Refresh the list.');
+      const token = await GM.getValue(ACCOUNT_TOKEN);
+      if (selection !== passwordSelectionVersion) return;
+      let password = sharedPassword;
+      if (token) {
+        emailStatus.textContent = accountStatus.textContent = 'Reading this account’s password from Notion…';
+        password = await new AccountClient(GM, token).password(row);
+      } else if (!password) {
+        if (!setTabPassword() && targets.password) return;
+        password = sharedPassword;
+      }
+      if (selection !== passwordSelectionVersion || (await GM.getValue(ACCOUNT_TOKEN) || null) !== (token || null)) return;
+      const refreshed = await accountStore.load();
+      if (!refreshed?.snapshot.accounts.some(x => sameAccount(x, row) && x.enabled && x.created_at)) throw new Error('This account is no longer available. Refresh the list.');
+      if (selection !== passwordSelectionVersion) return;
       const current = loginTargets(location.href, loginFields());
-      if (current.email?.node !== targets.email?.node || current.password?.node !== targets.password?.node) {
+      if (current.email?.node !== targets.email?.node || current.password?.node !== targets.password?.node ||
+          current.email?.node.value !== emailValue || current.password?.node.value !== passwordValue) {
         throw new Error('The sign-in form changed. Tap Fill again.');
       }
-      const filled = fillLogin(location.href, loginFields(), row, sharedPassword, pendingAccount, writeLogin);
+      const filled = fillLogin(location.href, loginFields(), row, password, pendingAccount, writeLogin);
       if (filled.email) pendingAccount = { number: row.number, email: row.email };
-      if (filled.email && !filled.password && sharedPassword) {
-        pendingPasswordFill = { account: pendingAccount, emailNode: current.email.node, expiresAt: Date.now() + 120000 };
+      if (filled.email && !filled.password && password) {
+        pendingPasswordFill = { account: pendingAccount, emailNode: current.email.node, password, token: token || null, expiresAt: Date.now() + 120000 };
+        pendingPasswordTimer = setTimeout(clearPendingPassword, 120000);
       }
       await accountStore.select(row);
       closeEmailPicker();
       accountStatus.textContent = (filled.password ? 'Password' : 'Email') + ' filled for #' + row.number + '. ' +
-        (filled.password ? 'Check LivU’s account email and press its sign-in button when ready.' : sharedPassword ?
+        (filled.password ? 'Check LivU’s account email and press its sign-in button when ready.' : password ?
           'Press Next in LivU; the password will fill automatically. You press Sign in yourself.' : 'Press Next in LivU and enter your password, or use Autofill there.');
       accountPanel.hidden = true; accountToggle.setAttribute('aria-expanded', 'false'); updateCurrent();
       notify((filled.password ? 'Password' : 'Email') + ' filled for #' + row.number + '.' +
         (pendingPasswordFill ? ' Press Next; the password will fill automatically.' : ''));
     });
   }
+  function clearPendingPassword() {
+    passwordSelectionVersion++;
+    clearTimeout(pendingPasswordTimer);
+    if (pendingPasswordFill) pendingPasswordFill.password = '';
+    pendingPasswordFill = null;
+  }
+  window.addEventListener('pagehide', () => { sharedPassword = ''; clearPendingPassword(); });
   function pendingPasswordTarget(intent) {
     if (pendingPasswordFill !== intent) return null;
-    if (!sharedPassword || Date.now() > intent.expiresAt || !sameAccount(intent.account, pendingAccount) ||
+    if (!intent.password || Date.now() >= intent.expiresAt || !sameAccount(intent.account, pendingAccount) ||
         intent.emailNode.value.trim().toLowerCase() !== intent.account.email.toLowerCase()) {
-      pendingPasswordFill = null; return null;
+      clearPendingPassword(); return null;
     }
     const fields = loginFields(), active = fields.filter(x => x.visible && !x.disabled && !x.readOnly);
     // A new-password or verification step cancels this one-use login intent.
     if (active.some(x => x.loginRole === 'new-password' || ['new-password', 'one-time-code'].includes(x.autocomplete))) {
-      pendingPasswordFill = null; return null;
+      clearPendingPassword(); return null;
     }
     let targets;
     try { targets = loginTargets(location.href, fields); }
-    catch (_) { if (active.length) pendingPasswordFill = null; return null; }
+    catch (_) { if (active.length) clearPendingPassword(); return null; }
     if (targets.email && targets.email.node.value.trim().toLowerCase() !== intent.account.email.toLowerCase()) {
-      pendingPasswordFill = null; return null;
+      clearPendingPassword(); return null;
     }
     // Never replace something typed by the user or filled by a password manager.
-    if (targets.password?.node.value) { pendingPasswordFill = null; return null; }
+    if (targets.password?.node.value) { clearPendingPassword(); return null; }
     return targets.email ? null : targets.password;
   }
   async function autofillPendingPassword() {
@@ -1484,20 +1540,23 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     let writing = false;
     try {
       const latest = await accountStore.load();
+      const token = await GM.getValue(ACCOUNT_TOKEN);
       if (pendingPasswordFill !== intent) return;
+      if ((token || null) !== intent.token) { clearPendingPassword(); return; }
       const row = latest?.snapshot.accounts.find(x => sameAccount(x, intent.account) && x.enabled && x.created_at);
       if (!row) throw new Error('This account is no longer available. Refresh the list.');
       // Storage may finish after the user edits or leaves the login form.
       const current = pendingPasswordTarget(intent);
-      if (!current || current.node !== target.node) { pendingPasswordFill = null; return; }
+      if (!current || current.node !== target.node) { clearPendingPassword(); return; }
       writing = true;
-      pendingPasswordFill = null;
-      fillLogin(location.href, loginFields(), row, sharedPassword, pendingAccount, writeLogin);
+      const password = intent.password;
+      clearPendingPassword();
+      fillLogin(location.href, loginFields(), row, password, pendingAccount, writeLogin);
       accountStatus.textContent = 'Password filled for #' + row.number + '. Check LivU’s account email and press Sign in when ready.';
       notify('Password filled for #' + row.number + '. Press Sign in when ready.');
     } catch (error) {
       if (pendingPasswordFill !== intent && !writing) return;
-      pendingPasswordFill = null;
+      clearPendingPassword();
       accountError(error.message || 'Password could not be filled. Use Autofill on the password screen.');
     } finally { passwordFillBusy = false; }
   }
@@ -1617,7 +1676,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     if (intent && node instanceof HTMLInputElement &&
         ((node === intent.emailNode && node.value.trim().toLowerCase() !== intent.account.email.toLowerCase()) ||
          node.type === 'password' || node.closest('.step-login-email-password') || node.autocomplete === 'one-time-code')) {
-      pendingPasswordFill = null;
+      clearPendingPassword();
     }
     if (!event.isTrusted || emailPicker.hidden || event.target !== emailAnchor) return;
     emailQuery = emailAnchor.value; emailOptions.scrollTop = 0; renderEmailAccounts();

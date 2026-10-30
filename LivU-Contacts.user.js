@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LivU Contacts
 // @namespace    private.livu.helper
-// @version      2.1.8
+// @version      2.1.9
 // @updateURL    https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.meta.js
 // @downloadURL  https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.user.js
 // @connect      api.notion.com
@@ -63,7 +63,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 // Packaged update UI and data validation. Downloaded code is never executed here.
 (() => {
   'use strict';
-  const VERSION = '2.1.8';
+  const VERSION = '2.1.9';
   const MANIFEST_URL = 'https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/update.json';
   const BASE = MANIFEST_URL.slice(0, MANIFEST_URL.lastIndexOf('/') + 1);
   const LIMIT = 32768;
@@ -162,7 +162,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 (function () {
   'use strict';
 
-  const VERSION = '2.1.8';
+  const VERSION = '2.1.9';
   const SOURCE = '02804175-f91f-4143-a2d1-c430ccbc73b3';
   const NOTION = 'https://app.notion.com/p/623001463d3e4b24b69fc3ea8cb7a564';
   const PREFIX = 'livu.contact.';
@@ -2103,8 +2103,10 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     },
     async add(value, event) {
       const path = event?.composedPath?.() || [];
-      const preview = document.querySelector('livu-profile-preview');
-      if (!event?.isTrusted || !preview || !path.includes(preview) || path[0]?.dataset?.action !== 'add-contact') {
+      const hosts = [document.querySelector('livu-profile-preview'), document.querySelector('livu-row-actions')];
+      const host = hosts.find(element => element && path.includes(element));
+      const button = path[0]?.closest?.('button[data-action="add-contact"]');
+      if (!event?.isTrusted || !host || !button || button.getRootNode() !== host.shadowRoot) {
         throw new Error('Use Add to contacts in the hover card.');
       }
       if (busy || syncing || greetingBusy) throw new Error('Wait for the current contact action to finish.');
@@ -3042,6 +3044,7 @@ const bridge = document.createElement("script"); bridge.textContent = "(() => {\
     favorite: '<path d="m12 3 2.8 5.8 6.4.9-4.6 4.5 1.1 6.4-5.7-3-5.7 3 1.1-6.4L2.8 9.7l6.4-.9z"/>',
     rename: '<path d="m15 4 5 5M4 20l4-1L20 7a2 2 0 0 0-4-4L4 15z"/>',
     message: '<path d="M20 11a8 8 0 0 1-12 7l-5 2 2-5A8 8 0 1 1 20 11z"/>',
+    add: '<path d="M12 5v14M5 12h14"/>',
     pin: '<path d="m8 3 8 0-1 7 4 4H5l4-4zM12 14v7"/>',
     profile: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
     previous: '<path d="m15 5-7 7 7 7"/>', next: '<path d="m9 5 7 7-7 7"/>'
@@ -3083,7 +3086,7 @@ const bridge = document.createElement("script"); bridge.textContent = "(() => {\
   toolbar.hidden = preview.hidden = true;
   const buttons = () => ["copy", "call", "favorite", "rename", "message", "pin"].map(name => `<button class="icon" type="button" data-action="${name}" title="" aria-label="">${svg(name === "pin" ? "pin" : name)}</button>`).join("");
   toolbar.shadowRoot.innerHTML = `<div class="actions" role="toolbar"></div>`;
-  toolbar.shadowRoot.querySelector(".actions").innerHTML = buttons();
+  toolbar.shadowRoot.querySelector(".actions").innerHTML = buttons() + `<button class="icon" type="button" data-action="add-contact" disabled>${svg("add")}</button>`;
   preview.shadowRoot.innerHTML = `<section class="card" role="dialog" aria-modal="false">
     <div class="cover" tabindex="0" role="group"><img alt="" decoding="async" hidden><span class="initial"></span><button class="close" type="button">×</button>
     <button class="photo-nav photo-prev" type="button" data-photo-step="-1" hidden>${svg("previous")}</button><button class="photo-nav photo-next" type="button" data-photo-step="1" hidden>${svg("next")}</button><span class="photo-count" role="status" aria-live="polite" hidden></span></div>
@@ -3093,6 +3096,8 @@ const bridge = document.createElement("script"); bridge.textContent = "(() => {\
     <button class="add-contact" type="button" data-action="add-contact" disabled></button><button class="delete-contact open" type="button" data-action="delete-contact" hidden>Delete contact</button><p class="contact-notice notice" role="status" aria-live="polite" hidden></p>
     <button class="open" type="button" data-action="profile"></button><p class="notice action-notice" role="status"></p><input class="copy-manually" readonly hidden></div></section>`;
   const contactButton = preview.shadowRoot.querySelector('.add-contact');
+  const compactContactButton = toolbar.shadowRoot.querySelector('[data-action="add-contact"]');
+  const contactButtons = [contactButton, compactContactButton];
   const contactNotice = preview.shadowRoot.querySelector('.contact-notice');
   const deleteButton = preview.shadowRoot.querySelector('.delete-contact');
   contactButton.textContent = t.addContact;
@@ -3117,17 +3122,22 @@ const bridge = document.createElement("script"); bridge.textContent = "(() => {\
     const state = sameContact(contactSave) ? contactSave : null;
     const saved = Boolean(target && target.api.has(target.item.url));
     if (saved && target.item.country) target.api.observe({ ...target.item, id: target.id });
-    contactButton.textContent = state?.pending ? t.savingContact : saved ? t.inContacts : t.addContact;
-    contactButton.disabled = !target || saved || Boolean(state?.pending) || !target.api.available();
-    contactButton.title = !target ? t.profileWaiting : saved ? t.inContacts : t.addContact;
+    const label = state?.pending ? t.savingContact : saved ? t.inContacts : t.addContact;
+    contactButton.textContent = label;
+    for (const button of contactButtons) {
+      button.disabled = !target || saved || Boolean(state?.pending) || !target.api.available();
+      button.title = state?.message || (!target ? t.profileWaiting : label);
+      button.setAttribute('aria-label', label);
+      button.setAttribute('aria-busy', String(Boolean(state?.pending)));
+    }
     deleteButton.hidden = !saved;
     deleteButton.disabled = !target || Boolean(state?.pending) || !target.api.available();
     contactNotice.textContent = state?.message || '';
     contactNotice.hidden = !state?.message;
   }
-  contactButton.addEventListener('click', async event => {
+  async function addContact(event) {
     event.preventDefault(); event.stopPropagation();
-    if (!event.isTrusted || contactButton.disabled) return;
+    if (!event.isTrusted || event.currentTarget.disabled) return;
     const target = contactTarget();
     if (!target) return;
     const attempt = { ...target, pending: true, message: '' };
@@ -3140,7 +3150,8 @@ const bridge = document.createElement("script"); bridge.textContent = "(() => {\
       attempt.pending = false;
       if (contactSave === attempt && sameContact(attempt)) { updateContactButton(); position(); }
     }
-  });
+  }
+  for (const button of contactButtons) button.addEventListener('click', addContact);
   deleteButton.addEventListener('click', async event => {
     event.preventDefault(); event.stopPropagation();
     if (!event.isTrusted || deleteButton.disabled) return;

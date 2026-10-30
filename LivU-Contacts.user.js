@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LivU Contacts
 // @namespace    private.livu.helper
-// @version      2.1.9
+// @version      2.1.10
 // @updateURL    https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.meta.js
 // @downloadURL  https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.user.js
 // @connect      api.notion.com
@@ -63,7 +63,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 // Packaged update UI and data validation. Downloaded code is never executed here.
 (() => {
   'use strict';
-  const VERSION = '2.1.9';
+  const VERSION = '2.1.10';
   const MANIFEST_URL = 'https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/update.json';
   const BASE = MANIFEST_URL.slice(0, MANIFEST_URL.lastIndexOf('/') + 1);
   const LIMIT = 32768;
@@ -162,7 +162,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 (function () {
   'use strict';
 
-  const VERSION = '2.1.9';
+  const VERSION = '2.1.10';
   const SOURCE = '02804175-f91f-4143-a2d1-c430ccbc73b3';
   const NOTION = 'https://app.notion.com/p/623001463d3e4b24b69fc3ea8cb7a564';
   const PREFIX = 'livu.contact.';
@@ -1210,16 +1210,17 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   greetingStop.hidden = true;
   const selectionTools = el('div', '', { class: 'selection-tools', role: 'group', 'aria-label': 'Select contacts' });
   const selectAll = button('Select all', () => selectVisibleContacts());
+  const selectTop5 = button('Select top 5', () => selectVisibleContacts(5));
   const selectTop20 = button('Select top 20', () => selectVisibleContacts(20));
   const clearSelection = button('Clear selection', () => {
     if (greetingBusy || presenceBusy || busy || syncing || accountBusy) return;
     selectedContacts.clear(); render();
   });
-  selectionTools.append(selectAll, selectTop20, clearSelection);
+  selectionTools.append(selectAll, selectTop5, selectTop20, clearSelection);
   const greetingActions = el('div', '', { class: 'actions' });
   greetingActions.append(greetingButton, greetingStop);
   greetingTools.append(greetingSender, selectionTools,
-    el('p', 'Select all / top 20 uses this search, sort and Online only filter. Already greeted or unconfirmed contacts are skipped. Busy and unknown are excluded when filtering.', { class: 'muted selection-hint' }), greetingActions,
+    el('p', 'Select all / top 5 / top 20 uses this search, sort and Online only filter. Already greeted or unconfirmed contacts are skipped. Busy and unknown are excluded when filtering.', { class: 'muted selection-hint' }), greetingActions,
     el('p', 'Checks selected chats, then asks once for the contact count and total coin cost before sending “selam”. Greetings are remembered on this device per account.', { class: 'muted' }));
   const paidBox = el('dialog', '', { class: 'greeting-approval', 'aria-labelledby': 'livu-greeting-approval-title' });
   const paidTitle = el('h3', 'Send selam?', { id: 'livu-greeting-approval-title' });
@@ -1827,7 +1828,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     accountConnectButton.disabled = accountReuseButton.disabled = accountDisconnectButton.disabled = importFile.disabled = accountSyncing || accountBusy || greetingBusy;
     const selectionBusy = greetingBusy || presenceBusy || busy || syncing || accountBusy;
     const selectable = visibleContacts().some(item => !rememberedGreeting(item));
-    selectAll.disabled = selectTop20.disabled = selectionBusy || !selectable;
+    selectAll.disabled = selectTop5.disabled = selectTop20.disabled = selectionBusy || !selectable;
     clearSelection.disabled = selectionBusy || !selectedContacts.size;
     greetingButton.textContent = greetingBusy ? 'Sending selam…' : 'Send selam (' + selectedContacts.size + ')';
     greetingButton.disabled = selectionBusy || !greetingAccount || !selectedContacts.size;

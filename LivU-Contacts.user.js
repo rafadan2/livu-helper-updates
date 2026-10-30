@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LivU Contacts
 // @namespace    private.livu.helper
-// @version      2.1.10
+// @version      2.1.11
 // @updateURL    https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.meta.js
 // @downloadURL  https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.user.js
 // @connect      api.notion.com
@@ -63,7 +63,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 // Packaged update UI and data validation. Downloaded code is never executed here.
 (() => {
   'use strict';
-  const VERSION = '2.1.10';
+  const VERSION = '2.1.11';
   const MANIFEST_URL = 'https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/update.json';
   const BASE = MANIFEST_URL.slice(0, MANIFEST_URL.lastIndexOf('/') + 1);
   const LIMIT = 32768;
@@ -162,7 +162,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 (function () {
   'use strict';
 
-  const VERSION = '2.1.10';
+  const VERSION = '2.1.11';
   const SOURCE = '02804175-f91f-4143-a2d1-c430ccbc73b3';
   const NOTION = 'https://app.notion.com/p/623001463d3e4b24b69fc3ea8cb7a564';
   const PREFIX = 'livu.contact.';
@@ -170,6 +170,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   const ACCOUNT_SOURCE = 'b9b8468b-d888-47cf-bbb1-b8c085fa1c80';
   const ACCOUNT_NOTION = 'https://app.notion.com/p/868627d1788a4f3598ae5e356026fa1a';
   const ACCOUNT_TOKEN = 'livu.accounts.notion.token';
+  const ACCOUNT_REUSE_DISABLED = 'livu.accounts.notion.reuse.disabled';
   const ACCOUNT_CACHE = 'livu.accounts.snapshot';
   const ACCOUNT_SELECTED = 'livu.accounts.selected';
   const CONTACT_SYNC = 'livu.contacts.sync.status';
@@ -476,13 +477,22 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     return value;
   }
 
+  async function accountToken(gm) {
+    const own = await gm.getValue(ACCOUNT_TOKEN);
+    if (own) return own;
+    return await gm.getValue(ACCOUNT_REUSE_DISABLED) ? null : (await gm.getValue(TOKEN) || null);
+  }
   function accountMetadata(row) {
     if (!row || !Number.isSafeInteger(row.number) || row.number < 1 ||
         typeof row.enabled !== 'boolean' || typeof row.purchased !== 'boolean' ||
         !(row.coins === null || (Number.isSafeInteger(row.coins) && row.coins >= 0))) {
       throw new Error('An account has invalid identity, coins or checkbox fields. Your saved list is kept.');
     }
+    if (row.gift_test != null && (typeof row.gift_test !== 'string' || row.gift_test.length > 2000)) {
+      throw new Error('An account has an invalid Gift test status. Your saved list is kept.');
+    }
     return { number: row.number, enabled: row.enabled, coins: row.coins, purchased: row.purchased,
+      gift_test: (row.gift_test || '').trim(),
       created_at: accountDate(row.created_at), last_checkin: accountDate(row.last_checkin),
       updated_at: accountDate(row.updated_at, 'date-or-timestamp') };
   }
@@ -523,6 +533,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   const sameAccount = (a, b) => Boolean(a && b && a.number === b.number &&
     typeof a.email === 'string' && typeof b.email === 'string' && a.email.toLowerCase() === b.email.toLowerCase());
   const coinLabel = item => item.coins === null ? 'Coins —' : item.coins + ' coins';
+  const giftLabel = item => 'Gifts: ' + (item.gift_test || 'Not recorded');
   function accountChoices(snapshot, selected, term = '') {
     term = term.trim().toLowerCase().replace(/^#/, '');
     return (snapshot?.accounts || []).filter(row => row.enabled && row.created_at &&
@@ -651,7 +662,10 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
           if (row?.archived || row?.in_trash) continue;
           const p = row?.properties;
           const date = name => p?.[name]?.date?.start ?? null;
+          const gift = Object.entries(p || {}).find(([name]) => name.trim().toLowerCase() === 'gift test')?.[1];
+          const giftTest = Array.isArray(gift?.rich_text) ? gift.rich_text.map(part => part.plain_text ?? part.text?.content ?? '').join('') : '';
           accounts.push({ number: p?.Number?.number, email: p?.Email?.email, coins: p?.Coins?.number,
+            gift_test: giftTest,
             enabled: p?.Enabled?.checkbox, purchased: p?.Purchased?.checkbox, created_at: date('Created'),
             last_checkin: date('Last check-in'), updated_at: date('Updated') });
         }
@@ -1063,8 +1077,8 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   // Expose testable code to Node, never to the LivU page.
   if (typeof module === 'object' && module.exports) {
     module.exports = { normalizeProfile, pageProfile, profileLabel, selectProfile, hoveredContact, contact, Store, NotionClient, sync, SOURCE, TOKEN, dirty,
-      accountSnapshot, missingEmailNotice, sameAccount, accountChoices, coinLabel, AccountStore, AccountClient, loginTargets, fillLogin, emailPickerPosition,
-      ACCOUNT_SOURCE, ACCOUNT_TOKEN, ACCOUNT_CACHE, ACCOUNT_SELECTED, CONTACT_SYNC, ACCOUNT_SYNC, SyncStatus, syncHealth,
+      accountSnapshot, missingEmailNotice, sameAccount, accountChoices, coinLabel, giftLabel, accountToken, AccountStore, AccountClient, loginTargets, fillLogin, emailPickerPosition,
+      ACCOUNT_SOURCE, ACCOUNT_TOKEN, ACCOUNT_REUSE_DISABLED, ACCOUNT_CACHE, ACCOUNT_SELECTED, CONTACT_SYNC, ACCOUNT_SYNC, SyncStatus, syncHealth,
       greetingId, GreetingStore, planGreetings, greetSelected, greetingPage, PresenceCache, presenceFiltered };
     return;
   }
@@ -1110,7 +1124,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     .helper-updates p{font-size:12px}.helper-updates a{display:block;margin-top:10px}.helper-updates [hidden]{display:none}
     .quick-add{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;font-size:28px;line-height:1;flex:0 0 auto}
     .notice{max-width:min(360px,calc(100vw - 32px));margin:0 0 10px auto;padding:10px 12px;border:1px solid #d7dfe7;border-radius:12px;background:#e9f2ef;color:#172238;box-shadow:0 4px 20px #0003;font-size:13px;overflow-wrap:anywhere}.notice[hidden]{display:none}
-    .account-coins{color:#116952;font-weight:650}.account-email{font-size:14px;overflow-wrap:anywhere;margin-top:5px}.account-selected{border-color:#166d59;background:#f3faf6}.account-top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.account-help{font-size:13px}#account-toggle{background:#fff;color:#166d59;font-weight:650}input[type=file]{font-size:13px}small{font-size:12px}
+    .account-gift{font-size:12px;line-height:1.35;overflow-wrap:anywhere;margin-top:3px}.account-coins{color:#116952;font-weight:650}.account-email{font-size:14px;overflow-wrap:anywhere;margin-top:5px}.account-selected{border-color:#166d59;background:#f3faf6}.account-top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.account-help{font-size:13px}#account-toggle{background:#fff;color:#166d59;font-weight:650}input[type=file]{font-size:13px}small{font-size:12px}
     .contact-choice{display:flex;align-items:center;gap:10px;margin:0;cursor:pointer}.contact-choice input{width:22px;height:22px;flex:0 0 auto;padding:0;accent-color:#166d59}.greeting-tools{padding:10px 0}.greeting-result{font-size:13px;line-height:1.4;color:#166d59;margin-top:8px;white-space:pre-line}.greeting-result.issue{color:#8a490e}
     .contact-list{gap:6px;margin-top:6px}.contact-card{padding:8px 10px;border-radius:9px}.contact-card .contact-choice{gap:8px;font-size:14px;min-height:24px}.contact-card .note{margin-top:3px}.contact-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 8px;margin-top:3px}.contact-footer .rowstatus{margin:0}.contact-card .actions{gap:4px;margin:0}.contact-card .actions button,.contact-card a.open{font-size:12px;min-height:32px;padding:5px 8px;border-radius:6px}.contact-card .greeting-result{font-size:12px;margin-top:4px}.selection-tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.selection-tools button{font-size:13px;min-height:36px;padding:6px 10px}.selection-hint{font-size:12px;margin:5px 0 0}
     .presence-tools{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px}.presence-tools label{display:flex;align-items:center;gap:7px;font-size:13px;margin:0;min-height:36px}.presence-tools input{width:20px;height:20px;margin:0;accent-color:#166d59}.presence-tools button{font-size:12px;min-height:34px;padding:5px 8px}.presence-info{font-size:12px;margin:4px 0;color:#657084}.presence-badge{margin-left:auto;flex:0 0 auto;font-size:11px;font-weight:500;padding:2px 6px;border-radius:12px;background:#eff1f4;color:#657084}.presence-badge[data-state=online]{background:#e1f4e9;color:#11613d}.presence-badge[data-state=busy]{background:#fff1db;color:#8a490e}.contact-choice .name{min-width:0}
@@ -1279,7 +1293,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     sharedPassword = ''; clearPendingPassword(); updatePasswordState(); accountStatus.textContent = 'Password forgotten by this helper. Any fields already filled on LivU stay as they are.';
   }));
   accountSettings.append(passwordState, passwordActions,
-    el('p', 'With account Notion connected, choosing an account reads its Password text field automatically. Passwords stay out of the saved list and backups. Set a tab password only when using an offline account list.', { class: 'muted' }));
+    el('p', 'With account Notion connected, choosing an account reads its Password text field automatically. Passwords stay out of the saved list and backups. Contacts connection is reused automatically unless accounts were disconnected. Offline tab passwords are optional and are never requested automatically.', { class: 'muted' }));
   const accountConnection = el('p', '', { class: 'muted' });
   const accountActions = el('div', '', { class: 'actions' });
   const accountSyncButton = button('Refresh coins', syncAccounts);
@@ -1296,7 +1310,8 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   });
   const accountDisconnectButton = button('Disconnect accounts', () => accountAction(async () => {
     clearPendingPassword();
-    await GM.deleteValue(ACCOUNT_TOKEN); await accountSyncStatus.clear(); accountStatus.textContent = 'Account Notion disconnected. Your cached list is kept.';
+    await GM.deleteValue(ACCOUNT_TOKEN); await GM.setValue(ACCOUNT_REUSE_DISABLED, true);
+    await accountSyncStatus.clear(); accountStatus.textContent = 'Account Notion disconnected. Your cached list is kept.';
   }));
   accountActions.append(accountConnectButton, accountReuseButton, accountDisconnectButton);
   accountSettings.append(accountConnection, accountActions, link('Open private account list', ACCOUNT_NOTION));
@@ -1366,15 +1381,15 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   }
   async function refreshAccounts() {
     accountCache = await accountStore.load(); selectedAccount = await accountStore.selected();
-    const connected = Boolean(await GM.getValue(ACCOUNT_TOKEN));
+    const connected = Boolean(await accountToken(GM));
     accountConnection.textContent = accountSyncing ? 'Reading accounts from Notion… Cached choices remain available.' : connected ?
-      'Account connection saved. Its checked status is shown above.' :
-      'Use your contacts connection or connect Notion. The integration must have access to LivU Accounts — Private as well as Contacts.';
+      'Using your account or Contacts connection. Its checked status is shown above.' :
+      'Connect Contacts or Autofill to Notion. The integration must have access to LivU Accounts — Private as well as Contacts.';
     await showAccountConnection(connected);
     updatePasswordState(); renderAccounts(); renderEmailAccounts();
   }
   async function showAccountConnection(connected) {
-    if (connected === undefined) connected = Boolean(await GM.getValue(ACCOUNT_TOKEN));
+    if (connected === undefined) connected = Boolean(await accountToken(GM));
     accountsConnected = connected;
     const state = await accountSyncStatus.load();
     // Older installations already recorded successful Notion fetches in this cache.
@@ -1410,6 +1425,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
       const top = el('div', '', { class: 'account-top' });
       top.append(el('span', '#' + row.number + (chosen ? ' · Selected' : ''), { class: 'name' }), el('span', coinLabel(row), { class: 'account-coins' }));
       card.append(top, el('div', row.email.replace(/@gmail\.com$/i, ''), { class: 'account-email', title: row.email }));
+      card.append(el('div', giftLabel(row), { class: 'account-gift rowstatus' }));
       if (row.updated_at) card.append(el('div', 'Recorded: ' + dateLabel(row.updated_at), { class: 'rowstatus' }));
       const actions = el('div', '', { class: 'actions' });
       const fillButton = button('Fill #' + row.number, () => chooseAndFill(row), 'primary'); fillButton.disabled = accountBusy;
@@ -1442,7 +1458,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     if (accountSyncing || accountBusy || greetingBusy) return;
     accountSyncing = true;
     try {
-      const token = connectionToken || await GM.getValue(ACCOUNT_TOKEN);
+      const token = connectionToken || await accountToken(GM);
       if (!token) throw new Error('Connect the private account Notion list first.');
       await showAccountConnection(true);
       accountStatus.textContent = 'Checking Notion access… Saved accounts remain available.';
@@ -1454,7 +1470,10 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
           if (!emailPicker.hidden) emailStatus.textContent = message;
         }, async () => {
           // Save only after access and the account schema have been verified.
-          if (connectionToken) await GM.setValue(ACCOUNT_TOKEN, token);
+          if (connectionToken) {
+            await GM.setValue(ACCOUNT_TOKEN, token);
+            await GM.deleteValue(ACCOUNT_REUSE_DISABLED);
+          }
         });
         await accountStore.replace(snapshot, 'Notion');
         notice = missingEmailNotice(snapshot);
@@ -1519,7 +1538,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     accountAction(async () => {
       const latest = await accountStore.load();
       if (!latest?.snapshot.accounts.some(x => sameAccount(x, row) && x.enabled && x.created_at)) throw new Error('This account is no longer available. Refresh the list.');
-      const token = await GM.getValue(ACCOUNT_TOKEN);
+      const token = await accountToken(GM);
       if (selection !== passwordSelectionVersion) return;
       let password = sharedPassword, passwordNotice = '';
       if (token) {
@@ -1528,10 +1547,9 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
         try { password = await new AccountClient(GM, token).password(row); }
         catch (error) { passwordNotice = 'Password unavailable. ' + error.message; }
       } else if (!password) {
-        if (!setTabPassword() && targets.password) return;
-        password = sharedPassword;
+        passwordNotice = 'Password unavailable. Connect Autofill to private Notion; the email can still be filled.';
       }
-      if (selection !== passwordSelectionVersion || (await GM.getValue(ACCOUNT_TOKEN) || null) !== (token || null)) return;
+      if (selection !== passwordSelectionVersion || (await accountToken(GM) || null) !== (token || null)) return;
       const refreshed = await accountStore.load();
       if (!refreshed?.snapshot.accounts.some(x => sameAccount(x, row) && x.enabled && x.created_at)) throw new Error('This account is no longer available. Refresh the list.');
       if (selection !== passwordSelectionVersion) return;
@@ -1597,7 +1615,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     let writing = false;
     try {
       const latest = await accountStore.load();
-      const token = await GM.getValue(ACCOUNT_TOKEN);
+      const token = await accountToken(GM);
       if (pendingPasswordFill !== intent) return;
       if ((token || null) !== intent.token) { clearPendingPassword(); return; }
       const row = latest?.snapshot.accounts.find(x => sameAccount(x, intent.account) && x.enabled && x.created_at);
@@ -1627,7 +1645,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
       await refreshAccounts();
       if (!accountCache) accountSettings.open = true;
       // Cached rows stay available during a background refresh and on connection failure.
-      if (await GM.getValue(ACCOUNT_TOKEN)) await syncAccounts();
+      if (await accountToken(GM)) await syncAccounts();
     } catch (_) { accountStatus.textContent = 'Account storage is unavailable. Check Userscripts and reload Safari.'; }
   }
   function closeAccounts() { accountPanel.hidden = true; accountToggle.setAttribute('aria-expanded', 'false'); updateCurrent(); }
@@ -1688,12 +1706,13 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
       const option = button('', () => chooseAndFill(row), 'email-option' + (chosen ? ' account-selected' : ''));
       option.setAttribute('role', 'option');
       option.setAttribute('aria-selected', String(chosen));
-      option.setAttribute('aria-label', 'Fill #' + row.number + ' · ' + coinLabel(row) + ' · ' + row.email);
-      option.title = row.email + (row.updated_at ? '\nRecorded: ' + dateLabel(row.updated_at) : '');
+      option.setAttribute('aria-label', 'Fill #' + row.number + ' · ' + coinLabel(row) + ' · ' + row.email + ' · ' + giftLabel(row));
+      option.title = row.email + '\n' + giftLabel(row) + (row.updated_at ? '\nRecorded: ' + dateLabel(row.updated_at) : '');
       option.disabled = accountBusy || greetingBusy;
       const top = el('div', '', { class: 'account-top' });
       top.append(el('span', '#' + row.number + (chosen ? ' · Selected' : ''), { class: 'name' }), el('span', coinLabel(row), { class: 'account-coins' }));
       option.append(top, el('div', row.email, { class: 'account-email' }));
+      option.append(el('div', giftLabel(row), { class: 'account-gift rowstatus' }));
       emailOptions.append(option);
     }
     emailOptions.scrollTop = scroll;
@@ -1814,7 +1833,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   async function showConnection() {
     const connected = Boolean(await GM.getValue(TOKEN));
     contactsConnected = connected;
-    connection.textContent = connected ? 'Contacts connection saved. Its checked status is shown above. Accounts use a separate connection.' : 'Saved on this device. Connect Notion to share contacts across devices. Accounts use a separate connection.';
+    connection.textContent = connected ? 'Contacts connection saved. Its checked status is shown above. Autofill can reuse it when it has access to the private account list.' : 'Saved on this device. Connect Notion to share contacts across devices and use the private account list in Autofill.';
     contactSyncSummary.update(syncHealth(connected, syncing, await contactSyncStatus.load()),
       all.filter(dirty).length + ' contact changes waiting to upload.');
     syncButton.textContent = syncing ? 'Refreshing…' : 'Refresh contacts';

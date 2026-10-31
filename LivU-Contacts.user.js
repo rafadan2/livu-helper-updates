@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LivU Contacts
 // @namespace    private.livu.helper
-// @version      2.1.11
+// @version      2.1.12
 // @updateURL    https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.meta.js
 // @downloadURL  https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.user.js
 // @connect      api.notion.com
@@ -63,7 +63,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 // Packaged update UI and data validation. Downloaded code is never executed here.
 (() => {
   'use strict';
-  const VERSION = '2.1.11';
+  const VERSION = '2.1.12';
   const MANIFEST_URL = 'https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/update.json';
   const BASE = MANIFEST_URL.slice(0, MANIFEST_URL.lastIndexOf('/') + 1);
   const LIMIT = 32768;
@@ -162,7 +162,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 (function () {
   'use strict';
 
-  const VERSION = '2.1.11';
+  const VERSION = '2.1.12';
   const SOURCE = '02804175-f91f-4143-a2d1-c430ccbc73b3';
   const NOTION = 'https://app.notion.com/p/623001463d3e4b24b69fc3ea8cb7a564';
   const PREFIX = 'livu.contact.';
@@ -534,6 +534,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     typeof a.email === 'string' && typeof b.email === 'string' && a.email.toLowerCase() === b.email.toLowerCase());
   const coinLabel = item => item.coins === null ? 'Coins —' : item.coins + ' coins';
   const giftLabel = item => 'Gifts: ' + (item.gift_test || 'Not recorded');
+  const giftSymbol = item => /^yes\b/i.test(item.gift_test || '') ? '🎁' : /^no\b/i.test(item.gift_test || '') ? '🚫' : '?';
   function accountChoices(snapshot, selected, term = '') {
     term = term.trim().toLowerCase().replace(/^#/, '');
     return (snapshot?.accounts || []).filter(row => row.enabled && row.created_at &&
@@ -1124,7 +1125,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     .helper-updates p{font-size:12px}.helper-updates a{display:block;margin-top:10px}.helper-updates [hidden]{display:none}
     .quick-add{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;font-size:28px;line-height:1;flex:0 0 auto}
     .notice{max-width:min(360px,calc(100vw - 32px));margin:0 0 10px auto;padding:10px 12px;border:1px solid #d7dfe7;border-radius:12px;background:#e9f2ef;color:#172238;box-shadow:0 4px 20px #0003;font-size:13px;overflow-wrap:anywhere}.notice[hidden]{display:none}
-    .account-gift{font-size:12px;line-height:1.35;overflow-wrap:anywhere;margin-top:3px}.account-coins{color:#116952;font-weight:650}.account-email{font-size:14px;overflow-wrap:anywhere;margin-top:5px}.account-selected{border-color:#166d59;background:#f3faf6}.account-top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.account-help{font-size:13px}#account-toggle{background:#fff;color:#166d59;font-weight:650}input[type=file]{font-size:13px}small{font-size:12px}
+    .account-balance{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}.account-gift{display:inline-flex;align-items:center;justify-content:center;min-width:18px;font-size:15px;font-weight:650;line-height:1.2;color:#657084}.account-coins{color:#116952;font-weight:650}.account-email{font-size:14px;overflow-wrap:anywhere;margin-top:5px}.account-selected{border-color:#166d59;background:#f3faf6}.account-top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.account-help{font-size:13px}#account-toggle{background:#fff;color:#166d59;font-weight:650}input[type=file]{font-size:13px}small{font-size:12px}
     .contact-choice{display:flex;align-items:center;gap:10px;margin:0;cursor:pointer}.contact-choice input{width:22px;height:22px;flex:0 0 auto;padding:0;accent-color:#166d59}.greeting-tools{padding:10px 0}.greeting-result{font-size:13px;line-height:1.4;color:#166d59;margin-top:8px;white-space:pre-line}.greeting-result.issue{color:#8a490e}
     .contact-list{gap:6px;margin-top:6px}.contact-card{padding:8px 10px;border-radius:9px}.contact-card .contact-choice{gap:8px;font-size:14px;min-height:24px}.contact-card .note{margin-top:3px}.contact-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 8px;margin-top:3px}.contact-footer .rowstatus{margin:0}.contact-card .actions{gap:4px;margin:0}.contact-card .actions button,.contact-card a.open{font-size:12px;min-height:32px;padding:5px 8px;border-radius:6px}.contact-card .greeting-result{font-size:12px;margin-top:4px}.selection-tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.selection-tools button{font-size:13px;min-height:36px;padding:6px 10px}.selection-hint{font-size:12px;margin:5px 0 0}
     .presence-tools{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px}.presence-tools label{display:flex;align-items:center;gap:7px;font-size:13px;margin:0;min-height:36px}.presence-tools input{width:20px;height:20px;margin:0;accent-color:#166d59}.presence-tools button{font-size:12px;min-height:34px;padding:5px 8px}.presence-info{font-size:12px;margin:4px 0;color:#657084}.presence-badge{margin-left:auto;flex:0 0 auto;font-size:11px;font-weight:500;padding:2px 6px;border-radius:12px;background:#eff1f4;color:#657084}.presence-badge[data-state=online]{background:#e1f4e9;color:#11613d}.presence-badge[data-state=busy]{background:#fff1db;color:#8a490e}.contact-choice .name{min-width:0}
@@ -1423,9 +1424,10 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
       const chosen = sameAccount(row, selectedAccount);
       const card = el('article', '', { class: 'card' + (chosen ? ' account-selected' : '') });
       const top = el('div', '', { class: 'account-top' });
-      top.append(el('span', '#' + row.number + (chosen ? ' · Selected' : ''), { class: 'name' }), el('span', coinLabel(row), { class: 'account-coins' }));
+      const balance = el('span', '', { class: 'account-balance' });
+      balance.append(el('span', coinLabel(row), { class: 'account-coins' }), giftBadge(row));
+      top.append(el('span', '#' + row.number + (chosen ? ' · Selected' : ''), { class: 'name' }), balance);
       card.append(top, el('div', row.email.replace(/@gmail\.com$/i, ''), { class: 'account-email', title: row.email }));
-      card.append(el('div', giftLabel(row), { class: 'account-gift rowstatus' }));
       if (row.updated_at) card.append(el('div', 'Recorded: ' + dateLabel(row.updated_at), { class: 'rowstatus' }));
       const actions = el('div', '', { class: 'actions' });
       const fillButton = button('Fill #' + row.number, () => chooseAndFill(row), 'primary'); fillButton.disabled = accountBusy;
@@ -1692,6 +1694,9 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     emailPicker.dataset.placement = position.placement;
     for (const name of ['left', 'top', 'width', 'maxHeight']) emailPicker.style[name] = position[name] + 'px';
   }
+  function giftBadge(row) {
+    return el('span', giftSymbol(row), { class: 'account-gift', role: 'img', title: giftLabel(row), 'aria-label': giftLabel(row) });
+  }
   function renderEmailAccounts() {
     positionEmailTrigger();
     if (emailPicker.hidden) return;
@@ -1710,9 +1715,10 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
       option.title = row.email + '\n' + giftLabel(row) + (row.updated_at ? '\nRecorded: ' + dateLabel(row.updated_at) : '');
       option.disabled = accountBusy || greetingBusy;
       const top = el('div', '', { class: 'account-top' });
-      top.append(el('span', '#' + row.number + (chosen ? ' · Selected' : ''), { class: 'name' }), el('span', coinLabel(row), { class: 'account-coins' }));
+      const balance = el('span', '', { class: 'account-balance' });
+      balance.append(el('span', coinLabel(row), { class: 'account-coins' }), giftBadge(row));
+      top.append(el('span', '#' + row.number + (chosen ? ' · Selected' : ''), { class: 'name' }), balance);
       option.append(top, el('div', row.email, { class: 'account-email' }));
-      option.append(el('div', giftLabel(row), { class: 'account-gift rowstatus' }));
       emailOptions.append(option);
     }
     emailOptions.scrollTop = scroll;

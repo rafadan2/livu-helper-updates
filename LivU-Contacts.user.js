@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LivU Contacts
 // @namespace    private.livu.helper
-// @version      2.1.12
+// @version      2.1.13
 // @updateURL    https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.meta.js
 // @downloadURL  https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.user.js
 // @connect      api.notion.com
@@ -63,7 +63,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 // Packaged update UI and data validation. Downloaded code is never executed here.
 (() => {
   'use strict';
-  const VERSION = '2.1.12';
+  const VERSION = '2.1.13';
   const MANIFEST_URL = 'https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/update.json';
   const BASE = MANIFEST_URL.slice(0, MANIFEST_URL.lastIndexOf('/') + 1);
   const LIMIT = 32768;
@@ -162,7 +162,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 (function () {
   'use strict';
 
-  const VERSION = '2.1.12';
+  const VERSION = '2.1.13';
   const SOURCE = '02804175-f91f-4143-a2d1-c430ccbc73b3';
   const NOTION = 'https://app.notion.com/p/623001463d3e4b24b69fc3ea8cb7a564';
   const PREFIX = 'livu.contact.';
@@ -175,6 +175,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   const ACCOUNT_SELECTED = 'livu.accounts.selected';
   const CONTACT_SYNC = 'livu.contacts.sync.status';
   const ACCOUNT_SYNC = 'livu.accounts.sync.status';
+  const AUTO_APPROVE_COINS = 'livu.greetings.autoApproveCoins';
   const ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
   function normalizeProfile(value) {
@@ -1106,6 +1107,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   let emailAnchor = null, emailQuery = '', emailLoading = false, emailOpening = 0, restoringEmailFocus = false;
   let busy = false;
   let syncing = false;
+  let contactsRefreshing = false, autoApproveEnabled = false, approvalPreferenceBusy = true;
   let contactsConnected = false, accountsConnected = false;
   let all = [];
   const countryObservations = new Set();
@@ -1123,11 +1125,13 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     *{box-sizing:border-box}button,input,textarea,a{font:inherit}button,a{touch-action:manipulation}button{border:1px solid #d8dee8;border-radius:9px;padding:10px 12px;background:white;color:#172238;cursor:pointer;min-height:42px}button:hover{background:#edf3f8}button:disabled{opacity:.5;cursor:wait}button:focus-visible,a:focus-visible,input:focus,textarea:focus{outline:3px solid #98c6f9;outline-offset:2px}.primary{background:#166d59;color:#fff;border-color:#166d59}.primary:hover{background:#125847}
     #toggle{box-shadow:0 4px 20px #0003;border-radius:24px;background:#166d59;color:white;padding:12px 18px;font-weight:650}.panel{width:min(392px,calc(100vw - 32px));max-height:calc(100vh - 100px);max-height:calc(100dvh - 100px);overflow:auto;background:#fafbfc;color:#172238;border:1px solid #d7dfe7;border-radius:18px;box-shadow:0 14px 50px #0004;margin-bottom:10px;padding:18px}.panel[hidden]{display:none}header{display:flex;align-items:center;justify-content:space-between;gap:12px}h2{font-size:21px;margin:0}h3{font-size:16px;margin:14px 0 8px}p{line-height:1.5;margin:10px 0;color:#4e5a6d}.muted{font-size:13px}label{display:block;margin:12px 0 5px;font-weight:600}input,textarea,select{width:100%;border:1px solid #bfcbd5;border-radius:8px;background:#fff;color:#172238;padding:10px;font-size:16px}textarea{min-height:65px;resize:vertical}.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.status{font-size:13px;padding:10px;border-radius:8px;background:#e9f2ef;white-space:pre-line}.status:empty{display:none}.list{display:grid;gap:10px;margin-top:12px}.card{background:white;border:1px solid #dce3e9;padding:12px;border-radius:12px}.name{font-weight:650;overflow-wrap:anywhere}.note{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:6px;color:#4e5a6d}a{color:#116952}a.open{display:inline-flex;align-items:center;min-height:42px;padding:9px 12px;border-radius:8px;background:#166d59;color:#fff;text-decoration:none}details{border-top:1px solid #dce3e9;margin-top:16px;padding-top:12px}summary{cursor:pointer;min-height:36px}#count{font-weight:400;font-size:13px;color:#4e5a6d}.rowstatus{font-size:12px;color:#657084;margin-top:4px}.toolbar{display:flex;justify-content:flex-end;gap:8px;max-width:calc(100vw - 32px)}.toolbar button{box-shadow:0 4px 20px #0003;border-radius:24px}button[hidden]{display:none}.current{padding:12px;background:#e9f2ef;border-radius:12px;margin-top:12px}.current p{margin:0 0 8px;overflow-wrap:anywhere}
     .helper-updates p{font-size:12px}.helper-updates a{display:block;margin-top:10px}.helper-updates [hidden]{display:none}
+    .contacts-header{position:sticky;top:-18px;z-index:2;background:#fafbfc;padding:12px 0;margin-top:-12px;border-bottom:1px solid #d7dfe7}.contacts-header .actions{flex-wrap:nowrap;margin:0}.contacts-header button{font-size:13px;padding:8px}.coin-approval{display:flex;align-items:center;gap:8px;font-size:13px}.coin-approval input{width:20px;height:20px;flex:0 0 auto;padding:0;accent-color:#166d59}
+    .contact-identity{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 6px;min-width:0;flex:1}.contact-country{font-size:11px;font-weight:400;color:#657084;overflow-wrap:anywhere}
     .quick-add{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;font-size:28px;line-height:1;flex:0 0 auto}
     .notice{max-width:min(360px,calc(100vw - 32px));margin:0 0 10px auto;padding:10px 12px;border:1px solid #d7dfe7;border-radius:12px;background:#e9f2ef;color:#172238;box-shadow:0 4px 20px #0003;font-size:13px;overflow-wrap:anywhere}.notice[hidden]{display:none}
     .account-balance{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}.account-gift{display:inline-flex;align-items:center;justify-content:center;min-width:18px;font-size:15px;font-weight:650;line-height:1.2;color:#657084}.account-coins{color:#116952;font-weight:650}.account-email{font-size:14px;overflow-wrap:anywhere;margin-top:5px}.account-selected{border-color:#166d59;background:#f3faf6}.account-top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.account-help{font-size:13px}#account-toggle{background:#fff;color:#166d59;font-weight:650}input[type=file]{font-size:13px}small{font-size:12px}
     .contact-choice{display:flex;align-items:center;gap:10px;margin:0;cursor:pointer}.contact-choice input{width:22px;height:22px;flex:0 0 auto;padding:0;accent-color:#166d59}.greeting-tools{padding:10px 0}.greeting-result{font-size:13px;line-height:1.4;color:#166d59;margin-top:8px;white-space:pre-line}.greeting-result.issue{color:#8a490e}
-    .contact-list{gap:6px;margin-top:6px}.contact-card{padding:8px 10px;border-radius:9px}.contact-card .contact-choice{gap:8px;font-size:14px;min-height:24px}.contact-card .note{margin-top:3px}.contact-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 8px;margin-top:3px}.contact-footer .rowstatus{margin:0}.contact-card .actions{gap:4px;margin:0}.contact-card .actions button,.contact-card a.open{font-size:12px;min-height:32px;padding:5px 8px;border-radius:6px}.contact-card .greeting-result{font-size:12px;margin-top:4px}.selection-tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.selection-tools button{font-size:13px;min-height:36px;padding:6px 10px}.selection-hint{font-size:12px;margin:5px 0 0}
+    .contact-list{gap:6px;margin-top:6px}.contact-card{padding:8px 10px;border-radius:9px}.contact-card .contact-choice{gap:8px;font-size:14px;min-height:24px}.contact-card .note{margin-top:3px}.contact-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 8px;margin-top:3px}.contact-footer .rowstatus{margin:0}.contact-card .actions{gap:4px;margin:0}.contact-card .actions button,.contact-card a.open{font-size:12px;min-height:26px;padding:3px 6px;border-radius:5px}.contact-card .greeting-result{font-size:12px;margin-top:4px}.selection-tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.selection-tools button{font-size:13px;min-height:36px;padding:6px 10px}.selection-hint{font-size:12px;margin:5px 0 0}
     .presence-tools{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px}.presence-tools label{display:flex;align-items:center;gap:7px;font-size:13px;margin:0;min-height:36px}.presence-tools input{width:20px;height:20px;margin:0;accent-color:#166d59}.presence-tools button{font-size:12px;min-height:34px;padding:5px 8px}.presence-info{font-size:12px;margin:4px 0;color:#657084}.presence-badge{margin-left:auto;flex:0 0 auto;font-size:11px;font-weight:500;padding:2px 6px;border-radius:12px;background:#eff1f4;color:#657084}.presence-badge[data-state=online]{background:#e1f4e9;color:#11613d}.presence-badge[data-state=busy]{background:#fff1db;color:#8a490e}.contact-choice .name{min-width:0}
     .sync-summary{border:1px solid #d7dfe7;border-radius:10px;padding:10px;margin:10px 0;background:#fff;font-size:12px;line-height:1.45}.sync-summary[data-tone=ok]{border-color:#92beac;background:#f3faf6}.sync-summary[data-tone=issue]{border-color:#dcaa70;background:#fff7ed}.sync-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:5px 8px}.sync-heading strong{font-size:13px}.sync-summary button{min-height:34px;padding:5px 8px;font-size:12px}.sync-health{font-weight:650;margin-top:4px}.sync-summary[data-tone=ok] .sync-health{color:#116952}.sync-summary[data-tone=issue] .sync-health{color:#8a490e}.sync-detail,.sync-timing{margin-top:4px;color:#4e5a6d;overflow-wrap:anywhere}.sync-detail{white-space:pre-line}.sync-error{margin-top:4px;color:#8a490e;overflow-wrap:anywhere}.sync-error:empty{display:none}
     .email-picker{position:fixed;display:flex;flex-direction:column;gap:5px;padding:8px;background:#fff;color:#172238;border:1px solid #b8cec5;border-radius:12px;box-shadow:0 8px 28px #0003;overflow:auto;overscroll-behavior:contain}.email-picker[hidden]{display:none}.email-picker[data-placement=above]{transform:translateY(-100%)}.email-picker header{gap:6px;flex:0 0 auto}.email-picker h3{margin:0;font-size:14px}.email-picker .email-close{min-height:32px;min-width:32px;padding:2px 7px;font-size:20px;border:0}.email-hint{font-size:11px;color:#657084;line-height:1.35}.email-options{display:grid;gap:3px;overflow:auto;overscroll-behavior:contain;min-height:48px;flex:1 1 auto}.email-option{width:100%;min-height:48px;padding:7px 9px;border-radius:8px;text-align:left;flex:0 0 auto}.email-option .account-top{font-size:13px;gap:4px}.email-option .account-email{font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.email-options p{margin:4px;font-size:12px}.email-footer{display:flex;gap:5px;justify-content:space-between;flex:0 0 auto}.email-footer button{font-size:12px;min-height:32px;padding:5px 8px}.email-status{font-size:12px;color:#8a490e;line-height:1.35;overflow-wrap:anywhere}.email-status:empty{display:none}
@@ -1154,7 +1158,8 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   }
   function syncSummary(title, refreshButton, timing) {
     const box = el('div', '', { class: 'sync-summary', role: 'status', 'aria-live': 'polite', 'aria-label': title });
-    const heading = el('div', '', { class: 'sync-heading' }); heading.append(el('strong', title), refreshButton);
+    const heading = el('div', '', { class: 'sync-heading' }); heading.append(el('strong', title));
+    if (refreshButton) heading.append(refreshButton);
     const health = el('div', '', { class: 'sync-health' });
     const detail = el('div', '', { class: 'sync-detail' });
     const error = el('div', '', { class: 'sync-error' });
@@ -1171,14 +1176,17 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   toggle.id = 'toggle'; toggle.setAttribute('aria-expanded', 'false');
   const quickFloat = button('+', quickAdd, 'primary quick-add');
   quickFloat.hidden = true;
-  const header = el('header');
+  const header = el('header', '', { class: 'contacts-header' });
   const heading = el('div');
   heading.append(el('h2', 'Your contacts', { id: 'livu-contacts-title' }), el('span', 'v' + VERSION, { class: 'muted' }));
-  header.append(heading, button('Close', close));
+  const syncButton = button('Refresh', refreshContacts);
+  syncButton.title = 'Refresh contacts from Notion and check online status';
+  const headerActions = el('div', '', { class: 'actions' });
+  headerActions.append(syncButton, button('Close', close));
+  header.append(heading, headerActions);
   panel.append(header, el('p', 'Save once. Open with whichever LivU account you’re signed into.', { class: 'muted' }));
   const status = el('p', '', { class: 'status', role: 'status', 'aria-live': 'polite' });
-  const syncButton = button('Refresh contacts', runSync);
-  const contactSyncSummary = syncSummary('Contacts Notion', syncButton,
+  const contactSyncSummary = syncSummary('Contacts Notion', null,
     'Auto-refresh: opening Contacts or saving a contact. No timed background refresh.');
   panel.append(contactSyncSummary.box, status);
   const currentCard = el('div', '', { class: 'current' });
@@ -1213,12 +1221,34 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   const list = el('div', '', { class: 'list contact-list' });
   const presenceTools = el('div', '', { class: 'presence-tools' });
   const onlineOnly = el('input', '', { type: 'checkbox', 'aria-label': 'Online only' });
+  onlineOnly.checked = true;
   const onlineLabel = el('label'); onlineLabel.append(onlineOnly, document.createTextNode('Online only'));
-  const presenceButton = button('Refresh status', () => refreshPresence());
   const presenceInfo = el('p', presenceMessage, { class: 'presence-info', role: 'status', 'aria-live': 'polite' });
-  presenceTools.append(onlineLabel, presenceButton);
+  presenceTools.append(onlineLabel);
   onlineOnly.addEventListener('change', event => { if (event.isTrusted) render(); });
   const greetingTools = el('div', '', { class: 'greeting-tools' });
+  const autoApproveCoins = el('input', '', { type: 'checkbox', 'aria-label': 'Auto-approve Selam coins' });
+  autoApproveCoins.disabled = true;
+  const autoApproveLabel = el('label', '', { class: 'coin-approval' });
+  autoApproveLabel.append(autoApproveCoins, document.createTextNode('Auto-approve Selam coins'));
+  const approvalHint = el('p', '', { class: 'muted' });
+  const approvalPreferenceReady = (async () => {
+    try { autoApproveEnabled = await GM.getValue(AUTO_APPROVE_COINS) === true; } catch (_) { /* Keep approval required. */ }
+    autoApproveCoins.checked = autoApproveEnabled;
+    approvalPreferenceBusy = false;
+    updateGreetingControls();
+  })();
+  autoApproveCoins.addEventListener('change', async event => {
+    if (!event.isTrusted || greetingBusy || approvalPreferenceBusy) return;
+    approvalPreferenceBusy = true; updateGreetingControls();
+    try {
+      await GM.setValue(AUTO_APPROVE_COINS, autoApproveCoins.checked);
+      autoApproveEnabled = autoApproveCoins.checked;
+    } catch (_) {
+      autoApproveCoins.checked = autoApproveEnabled;
+      status.textContent = 'Could not save the approval setting. Your previous choice is kept.';
+    } finally { approvalPreferenceBusy = false; updateGreetingControls(); }
+  });
   const greetingSender = el('p', 'Sign into LivU, then select contacts to greet.', { class: 'muted' });
   const greetingButton = button('Send selam (0)', sendGreetings, 'primary');
   const greetingStop = button('Stop after this contact', () => { stopGreetings = true; greetingStop.disabled = true; resolvePaidApproval(false); });
@@ -1236,7 +1266,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   greetingActions.append(greetingButton, greetingStop);
   greetingTools.append(greetingSender, selectionTools,
     el('p', 'Select all / top 5 / top 20 uses this search, sort and Online only filter. Already greeted or unconfirmed contacts are skipped. Busy and unknown are excluded when filtering.', { class: 'muted selection-hint' }), greetingActions,
-    el('p', 'Checks selected chats, then asks once for the contact count and total coin cost before sending “selam”. Greetings are remembered on this device per account.', { class: 'muted' }));
+    autoApproveLabel, approvalHint);
   const paidBox = el('dialog', '', { class: 'greeting-approval', 'aria-labelledby': 'livu-greeting-approval-title' });
   const paidTitle = el('h3', 'Send selam?', { id: 'livu-greeting-approval-title' });
   const paidText = el('p');
@@ -1265,13 +1295,13 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   })), button('Import backup', () => {
     if (busy || syncing) return;
     const text = window.prompt('Paste a LivU contacts backup. Existing contacts with the same link will be updated.');
-    if (text !== null) action(async () => { const n = await store.importBackup(text); await refresh(); status.textContent = n + ' contacts imported locally. Tap Refresh contacts to upload them.'; });
+    if (text !== null) action(async () => { const n = await store.importBackup(text); await refresh(); status.textContent = n + ' contacts imported locally. Tap Refresh to upload them.'; });
   }), button('Resolve interrupted save', () => {
     if (busy || syncing) return;
     if (!window.confirm('First check the Notion list. Only continue if the missing contact was NOT created there. Allow a new create attempt?')) return;
     action(async () => {
       for (const item of await store.all()) if (item.uncertain) await store.put({ ...item, uncertain: false });
-      status.textContent = 'A new save attempt is allowed. Tap Refresh contacts; existing Notion links will be checked again first.';
+      status.textContent = 'A new save attempt is allowed. Tap Refresh; existing Notion links will be checked again first.';
     });
   }));
   tools.append(backups);
@@ -1842,16 +1872,21 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     connection.textContent = connected ? 'Contacts connection saved. Its checked status is shown above. Autofill can reuse it when it has access to the private account list.' : 'Saved on this device. Connect Notion to share contacts across devices and use the private account list in Autofill.';
     contactSyncSummary.update(syncHealth(connected, syncing, await contactSyncStatus.load()),
       all.filter(dirty).length + ' contact changes waiting to upload.');
-    syncButton.textContent = syncing ? 'Refreshing…' : 'Refresh contacts';
+    syncButton.textContent = syncing || contactsRefreshing || presenceBusy ? 'Refreshing…' : 'Refresh';
     updateGreetingControls();
   }
   async function refresh() { all = await store.all(); render(); updateCurrent(); await showConnection(); }
   function updateGreetingControls() {
-    syncButton.disabled = !contactsConnected || syncing || busy || greetingBusy;
+    syncButton.disabled = contactsRefreshing || presenceBusy || syncing || busy || greetingBusy || accountBusy;
+    syncButton.textContent = syncing || contactsRefreshing || presenceBusy ? 'Refreshing…' : 'Refresh';
+    autoApproveCoins.disabled = approvalPreferenceBusy || greetingBusy;
+    approvalHint.textContent = autoApproveEnabled ?
+      'Send selam skips approval and may spend 9 coins per paid chat. Saved on this device.' :
+      'Checks selected chats, then asks once for the contact count and total coin cost. Auto-approve is off.';
     accountSyncButton.disabled = !accountsConnected || accountSyncing || accountBusy || greetingBusy;
     emailRefresh.disabled = !accountsConnected || accountSyncing || accountBusy || greetingBusy;
     accountConnectButton.disabled = accountReuseButton.disabled = accountDisconnectButton.disabled = importFile.disabled = accountSyncing || accountBusy || greetingBusy;
-    const selectionBusy = greetingBusy || presenceBusy || busy || syncing || accountBusy;
+    const selectionBusy = greetingBusy || presenceBusy || contactsRefreshing || busy || syncing || accountBusy || approvalPreferenceBusy;
     const selectable = visibleContacts().some(item => !rememberedGreeting(item));
     selectAll.disabled = selectTop5.disabled = selectTop20.disabled = selectionBusy || !selectable;
     clearSelection.disabled = selectionBusy || !selectedContacts.size;
@@ -1874,7 +1909,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
         let result;
         try { result = JSON.parse(reply.textContent); } catch (_) { /* Treat unreadable replies as unknown. */ }
         finish(result || { state: readOnly ? 'unavailable' : 'uncertain', message: readOnly ?
-          'Safari could not read LivU’s response. Try Refresh status.' : 'Safari could not confirm the send. Check the chat manually.' });
+          'Safari could not read LivU’s response. Tap Refresh.' : 'Safari could not confirm the send. Check the chat manually.' });
       });
       watcher.observe(reply, { attributes: true, attributeFilter: ['data-done'] });
       const timer = setTimeout(() => finish({ state: readOnly ? 'unavailable' : 'uncertain',
@@ -1940,7 +1975,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     } catch (_) {
       if (revision !== presenceRevision || panel.hidden) return;
       presence.reset(greetingAccount);
-      presenceMessage = 'Online status could not be checked. Try Refresh status.';
+      presenceMessage = 'Online status could not be checked. Tap Refresh.';
     } finally {
       if (revision === presenceRevision && !panel.hidden) {
         presenceBusy = false; render(); schedulePresenceExpiry();
@@ -1959,7 +1994,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     if (expires.length) presenceTimer = setTimeout(() => { render(); schedulePresenceExpiry(); }, Math.min(...expires) - now + 20);
   }
   async function sendGreetings() {
-    if (greetingBusy || presenceBusy || busy || syncing || accountBusy || !greetingAccount) return;
+    if (greetingBusy || presenceBusy || contactsRefreshing || busy || syncing || accountBusy || approvalPreferenceBusy || !greetingAccount) return;
     const items = sortedContacts(presenceFiltered(all.filter(x => selectedContacts.has(x.url)), onlineOnly.checked, presence, greetingAccount));
     if (!items.length) return;
     if (!navigator.locks) { status.textContent = 'Update Safari to use greeting sends safely across tabs.'; return; }
@@ -1969,7 +2004,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
       await navigator.locks.request('livu-selected-greetings', { ifAvailable: true }, async lock => {
         if (!lock) { status.textContent = 'Greetings are already running in another tab. Wait for that run to finish.'; return; }
         const results = await greetSelected(items, owner, { history: greetingHistory, page: pageGreeting,
-          approveBatch: summary => new Promise(resolve => {
+          approveBatch: summary => autoApproveEnabled ? true : new Promise(resolve => {
             paidText.textContent = summary.count + ' contacts selected for “selam”.\n' +
               summary.paidCount + ' paid chats × 9 coins · ' + summary.freeCount + ' free chats.\n' +
               'Total: ' + summary.totalCoins + ' coins.\n' +
@@ -2011,7 +2046,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     return ['sent', 'sent-before', 'uncertain'].includes(greetingResults.get(item.url)?.state);
   }
   function selectVisibleContacts(limit = Infinity) {
-    if (greetingBusy || presenceBusy || busy || syncing || accountBusy) return;
+    if (greetingBusy || presenceBusy || contactsRefreshing || busy || syncing || accountBusy) return;
     const items = visibleContacts().filter(item => !rememberedGreeting(item)).slice(0, limit);
     selectedContacts.clear();
     for (const item of items) selectedContacts.add(item.url);
@@ -2025,10 +2060,9 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
       if (!eligible.some(x => x.url === url && !rememberedGreeting(x))) selectedContacts.delete(url);
     }
     presenceInfo.textContent = presenceMessage;
-    presenceButton.disabled = presenceBusy || greetingBusy || busy || syncing;
-    onlineOnly.disabled = greetingBusy || presenceBusy;
+    onlineOnly.disabled = greetingBusy || presenceBusy || contactsRefreshing;
     list.replaceChildren();
-    if (!items.length) list.append(el('p', all.length ? onlineOnly.checked ? 'No recently confirmed online contacts match. Try Refresh status.' : 'No contacts match your search.' : 'Save a profile link above to start your list.', { class: 'muted' }));
+    if (!items.length) list.append(el('p', all.length ? onlineOnly.checked ? 'No recently confirmed online contacts match. Tap Refresh.' : 'No contacts match your search.' : 'Save a profile link above to start your list.', { class: 'muted' }));
     for (const item of items) {
       const card = el('article', '', { class: 'card contact-card' });
       const choice = el('label', '', { class: 'contact-choice' });
@@ -2043,10 +2077,12 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
         updateGreetingControls();
       });
       const live = presence.get(item.url, greetingAccount);
-      choice.append(checkbox, el('span', item.name, { class: 'name' }),
+      const identity = el('span', '', { class: 'contact-identity' });
+      identity.append(el('span', item.name, { class: 'name' }));
+      if (item.country) identity.append(el('span', item.country, { class: 'contact-country' }));
+      choice.append(checkbox, identity,
         el('span', live.label, { class: 'presence-badge', 'data-state': live.state,
-          title: live.stale ? 'Status expired. Refresh status.' : live.at ? 'Checked ' + new Date(live.at).toLocaleTimeString() : 'Status has not been confirmed.' })); card.append(choice);
-      if (item.country) card.append(el('div', item.country, { class: 'contact-country rowstatus' }));
+          title: live.stale ? 'Status expired. Tap Refresh.' : live.at ? 'Checked ' + new Date(live.at).toLocaleTimeString() : 'Status has not been confirmed.' })); card.append(choice);
       if (item.notes) card.append(el('div', item.notes, { class: 'note' }));
       const footer = el('div', '', { class: 'contact-footer' });
       footer.append(el('div', dirty(item) ? 'Awaiting sync' : 'Synced', { class: 'rowstatus', title: dirty(item) ? 'Saved here · awaiting Notion sync' : 'Synced with Notion' }));
@@ -2198,19 +2234,27 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
     }
     finally { syncing = false; save.disabled = false; await showConnection(); updateCurrent(); }
   }
+  async function refreshContacts() {
+    if (contactsRefreshing || syncing || presenceBusy || busy || greetingBusy || accountBusy || panel.hidden) return;
+    const revision = panelRevision;
+    contactsRefreshing = true; updateGreetingControls();
+    try {
+      if (await GM.getValue(TOKEN)) await runSync();
+      else await refresh();
+      if (revision !== panelRevision || panel.hidden) return;
+      await refreshPresence();
+    } finally { contactsRefreshing = false; render(); }
+  }
   async function open() {
     const revision = ++panelRevision;
     accountPanel.hidden = true; accountToggle.setAttribute('aria-expanded', 'false');
     panel.hidden = false; toggle.setAttribute('aria-expanded', 'true');
     try {
+      await approvalPreferenceReady;
       await refresh();
       if (revision !== panelRevision || panel.hidden) return;
       search.focus();
-      const token = await GM.getValue(TOKEN);
-      if (revision !== panelRevision || panel.hidden) return;
-      if (token) await runSync();
-      if (revision !== panelRevision || panel.hidden) return;
-      await refreshPresence();
+      await refreshContacts();
     } catch (_) { status.textContent = 'Userscripts storage is unavailable. Check that this script is enabled, then reload Safari.'; }
   }
   function close() { stopGreetings = true; cancelPresence(); resolvePaidApproval(false); panel.hidden = true; toggle.setAttribute('aria-expanded', 'false'); updateCurrent(); toggle.focus(); }

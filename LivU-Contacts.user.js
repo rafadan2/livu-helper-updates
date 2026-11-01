@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LivU Contacts
 // @namespace    private.livu.helper
-// @version      2.1.15
+// @version      2.1.16
 // @updateURL    https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.meta.js
 // @downloadURL  https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.user.js
 // @connect      api.notion.com
@@ -63,7 +63,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 // Packaged update UI and data validation. Downloaded code is never executed here.
 (() => {
   'use strict';
-  const VERSION = '2.1.15';
+  const VERSION = '2.1.16';
   const MANIFEST_URL = 'https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/update.json';
   const BASE = MANIFEST_URL.slice(0, MANIFEST_URL.lastIndexOf('/') + 1);
   const LIMIT = 32768;
@@ -162,7 +162,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 (function () {
   'use strict';
 
-  const VERSION = '2.1.15';
+  const VERSION = '2.1.16';
   const SOURCE = '02804175-f91f-4143-a2d1-c430ccbc73b3';
   const NOTION = 'https://app.notion.com/p/623001463d3e4b24b69fc3ea8cb7a564';
   const PREFIX = 'livu.contact.';
@@ -256,16 +256,20 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     return 'https://livuapp.com/profile/' + match[1];
   }
 
+  const foldSearch = value => String(value || '').normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/ı/g, 'i').replace(/\s+/g, ' ').trim();
+
   function contact(value) {
     if (!value || typeof value !== 'object') throw new Error('Invalid contact.');
     const url = normalizeProfile(value.url);
     const name = String(value.name || '').trim();
     const notes = String(value.notes || '').trim();
     const country = String(value.country || '').replace(/\s+/g, ' ').trim();
+    const city = String(value.city || '').replace(/\s+/g, ' ').trim();
     if (!name || name.length > 120) throw new Error('Enter a nickname of 1–120 characters.');
     if (notes.length > 1500) throw new Error('Keep notes under 1,500 characters.');
     if (country.length > 80) throw new Error('Keep country under 80 characters.');
-    return { url, name, notes, ...(Object.hasOwn(value, 'country') ? { country } : {}) };
+    if (city.length > 80) throw new Error('Keep city under 80 characters.');
+    return { url, name, notes, ...(Object.hasOwn(value, 'country') ? { country } : {}), ...(Object.hasOwn(value, 'city') ? { city } : {}) };
   }
 
   function pageProfile(value) {
@@ -429,6 +433,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       }
       if (props.Country && props.Country.type !== 'rich_text') throw new Error('The Notion Country field must be text before syncing.');
       this.countryField = Boolean(props.Country);
+      if (props.City && props.City.type !== 'rich_text') throw new Error('The Notion City field must be text before syncing.');
+      this.cityField = Boolean(props.City);
     }
     async query(filter) {
       const pages = [];
@@ -452,13 +458,16 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       try {
         return { ...contact({ url: page.properties?.['Profile URL']?.url, name: plain(page.properties?.Name?.title),
           notes: plain(page.properties?.Notes?.rich_text),
-          ...(page.properties?.Country?.rich_text ? { country: plain(page.properties.Country.rich_text) } : {}) }), pageId: page.id };
+          ...(page.properties?.Country?.rich_text ? { country: plain(page.properties.Country.rich_text) } : {}),
+          ...(page.properties?.City?.rich_text ? { city: plain(page.properties.City.rich_text) } : {}) }), pageId: page.id };
       } catch (_) { return null; }
     }
     properties(item) {
       if (this.countryField === false && item.country) throw new Error('Add a text field named Country to Notion contacts, then refresh again.');
+      if (this.cityField === false && item.city) throw new Error('Add a text field named City to Notion contacts, then refresh again.');
       return { Name: { title: richText(item.name) }, 'Profile URL': { url: item.url }, Notes: { rich_text: richText(item.notes) },
-        ...(this.countryField !== false && Object.hasOwn(item, 'country') ? { Country: { rich_text: richText(item.country) } } : {}) };
+        ...(this.countryField !== false && Object.hasOwn(item, 'country') ? { Country: { rich_text: richText(item.country) } } : {}),
+        ...(this.cityField !== false && Object.hasOwn(item, 'city') ? { City: { rich_text: richText(item.city) } } : {}) };
     }
     async write(item, pageId) {
       if (pageId && !ID.test(pageId)) throw new Error('Invalid Notion contact ID.');
@@ -511,7 +520,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
         await store.put({ ...item, uncertain: true });
       }
       let written;
-      const upload = !Object.hasOwn(item, 'country') && match?.country ? { ...item, country: match.country } : item;
+      const preserved = Object.fromEntries(['country', 'city'].filter(key => !Object.hasOwn(item, key) && match && Object.hasOwn(match, key)).map(key => [key, match[key]]));
+      const upload = Object.keys(preserved).length ? { ...item, ...preserved } : item;
       try { written = await client.write(upload, match?.pageId); }
       catch (error) {
         if (!match && error.requestRejected) {
@@ -523,7 +533,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       await store.markSynced(item, match?.pageId || written?.id || written?.pageId);
       if (upload !== item) {
         const latest = await store.get(item.url);
-        if (latest?.revision === item.revision) await store.put({ ...latest, country: upload.country });
+        if (latest?.revision === item.revision) await store.put({ ...latest, ...preserved });
       }
       uploaded++;
     }
@@ -1193,12 +1203,12 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     #toggle{box-shadow:0 4px 20px #0003;border-radius:24px;background:#166d59;color:white;padding:12px 18px;font-weight:650}.panel{width:min(392px,calc(100vw - 32px));max-height:calc(100vh - 100px);max-height:calc(100dvh - 100px);overflow:auto;background:#fafbfc;color:#172238;border:1px solid #d7dfe7;border-radius:18px;box-shadow:0 14px 50px #0004;margin-bottom:10px;padding:18px}.panel[hidden]{display:none}header{display:flex;align-items:center;justify-content:space-between;gap:12px}h2{font-size:21px;margin:0}h3{font-size:16px;margin:14px 0 8px}p{line-height:1.5;margin:10px 0;color:#4e5a6d}.muted{font-size:13px}label{display:block;margin:12px 0 5px;font-weight:600}input,textarea,select{width:100%;border:1px solid #bfcbd5;border-radius:8px;background:#fff;color:#172238;padding:10px;font-size:16px}textarea{min-height:65px;resize:vertical}.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.status{font-size:13px;padding:10px;border-radius:8px;background:#e9f2ef;white-space:pre-line}.status:empty{display:none}.list{display:grid;gap:10px;margin-top:12px}.card{background:white;border:1px solid #dce3e9;padding:12px;border-radius:12px}.name{font-weight:650;overflow-wrap:anywhere}.note{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:6px;color:#4e5a6d}a{color:#116952}a.open{display:inline-flex;align-items:center;min-height:42px;padding:9px 12px;border-radius:8px;background:#166d59;color:#fff;text-decoration:none}details{border-top:1px solid #dce3e9;margin-top:16px;padding-top:12px}summary{cursor:pointer;min-height:36px}#count{font-weight:400;font-size:13px;color:#4e5a6d}.rowstatus{font-size:12px;color:#657084;margin-top:4px}.toolbar{display:flex;justify-content:flex-end;gap:8px;max-width:calc(100vw - 32px)}.toolbar button{box-shadow:0 4px 20px #0003;border-radius:24px}button[hidden]{display:none}.current{padding:12px;background:#e9f2ef;border-radius:12px;margin-top:12px}.current p{margin:0 0 8px;overflow-wrap:anywhere}
     .helper-updates p{font-size:12px}.helper-updates a{display:block;margin-top:10px}.helper-updates [hidden]{display:none}
     .contacts-header{position:sticky;top:-18px;z-index:2;background:#fafbfc;padding:12px 0;margin-top:-12px;border-bottom:1px solid #d7dfe7}.contacts-header .actions{flex-wrap:nowrap;margin:0}.contacts-header button{font-size:13px;padding:8px}.coin-approval{display:flex;align-items:center;gap:8px;font-size:13px}.coin-approval input{width:20px;height:20px;flex:0 0 auto;padding:0;accent-color:#166d59}
-    .contact-identity{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 6px;min-width:0;flex:1}.contact-country{font-size:11px;font-weight:400;color:#657084;overflow-wrap:anywhere}.contact-location{display:inline-flex;align-items:center;gap:4px;min-width:0}.contact-flag{display:inline-block;width:21px;height:14px;flex:0 0 21px;border-radius:2px;box-shadow:0 0 0 1px #17223820}.unknown-country{text-align:center;font-size:11px;line-height:14px;color:#657084;background:#eff1f4}.contact-filters{display:flex;gap:6px;margin-top:6px}.contact-filters label{min-width:0;flex:1;font-size:12px;margin:0}.contact-filters select{margin-top:3px;font-size:13px;padding:8px;min-width:0}
+    .contact-identity{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}.contact-heading{display:flex;align-items:center;gap:6px;min-width:0;max-width:100%}.contact-heading .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto}.contact-heading .contact-location{flex:none}.contact-city,.contact-country{font-size:11px;font-weight:400;color:#657084;overflow-wrap:anywhere}.contact-location{display:inline-flex;align-items:center;gap:4px;min-width:0}.contact-flag{display:inline-block;width:21px;height:14px;flex:0 0 21px;border-radius:2px;box-shadow:0 0 0 1px #17223820}.unknown-country{text-align:center;font-size:11px;line-height:14px;color:#657084;background:#eff1f4}.contact-filters{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.contact-filters label{min-width:100px;flex:1;font-size:12px;margin:0}.contact-filters select{margin-top:3px;font-size:13px;padding:8px;min-width:0}
     .quick-add{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;font-size:28px;line-height:1;flex:0 0 auto}
     .notice{max-width:min(360px,calc(100vw - 32px));margin:0 0 10px auto;padding:10px 12px;border:1px solid #d7dfe7;border-radius:12px;background:#e9f2ef;color:#172238;box-shadow:0 4px 20px #0003;font-size:13px;overflow-wrap:anywhere}.notice[hidden]{display:none}
     .account-balance{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}.account-gift{display:inline-flex;align-items:center;justify-content:center;min-width:18px;font-size:15px;font-weight:650;line-height:1.2;color:#657084}.account-coins{color:#116952;font-weight:650}.account-email{font-size:14px;overflow-wrap:anywhere;margin-top:5px}.account-selected{border-color:#166d59;background:#f3faf6}.account-top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.account-help{font-size:13px}#account-toggle{background:#fff;color:#166d59;font-weight:650}input[type=file]{font-size:13px}small{font-size:12px}
     .contact-choice{display:flex;align-items:center;gap:10px;margin:0;cursor:pointer}.contact-choice input{width:22px;height:22px;flex:0 0 auto;padding:0;accent-color:#166d59}.greeting-tools{padding:10px 0}.greeting-result{font-size:13px;line-height:1.4;color:#166d59;margin-top:8px;white-space:pre-line}.greeting-result.issue{color:#8a490e}
-    .contact-list{gap:6px;margin-top:6px}.contact-card{padding:8px 10px;border-radius:9px}.contact-card .contact-choice{gap:8px;font-size:14px;min-height:24px}.contact-card .note{margin-top:3px}.contact-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 8px;margin-top:3px}.contact-footer .rowstatus{margin:0}.contact-card .actions{gap:4px;margin:0}.contact-card .actions button,.contact-card a.open{font-size:12px;min-height:26px;padding:3px 6px;border-radius:5px}.contact-card .greeting-result{font-size:12px;margin-top:4px}.selection-tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.selection-tools button{font-size:13px;min-height:36px;padding:6px 10px}.selection-hint{font-size:12px;margin:5px 0 0}
+    .contact-list{grid-template-columns:minmax(0,1fr);gap:6px;margin-top:6px}.contact-card{min-width:0;padding:8px 10px;border-radius:9px}.contact-card .contact-choice{gap:8px;font-size:14px;min-height:24px}.contact-card .note{margin-top:3px}.contact-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 8px;margin-top:3px}.contact-footer .rowstatus{margin:0}.contact-card .actions{gap:4px;margin:0}.contact-card .actions button,.contact-card a.open{font-size:12px;min-height:26px;padding:3px 6px;border-radius:5px}.contact-card .greeting-result{font-size:12px;margin-top:4px}.selection-tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.selection-tools button{font-size:13px;min-height:36px;padding:6px 10px}.selection-hint{font-size:12px;margin:5px 0 0}
     .presence-tools{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px}.presence-tools label{display:flex;align-items:center;gap:7px;font-size:13px;margin:0;min-height:36px}.presence-tools input{width:20px;height:20px;margin:0;accent-color:#166d59}.presence-tools button{font-size:12px;min-height:34px;padding:5px 8px}.presence-info{font-size:12px;margin:4px 0;color:#657084}.presence-badge{margin-left:auto;flex:0 0 auto;font-size:11px;font-weight:500;padding:2px 6px;border-radius:12px;background:#eff1f4;color:#657084}.presence-badge[data-state=online]{background:#e1f4e9;color:#11613d}.presence-badge[data-state=busy]{background:#fff1db;color:#8a490e}.contact-choice .name{min-width:0}
     .sync-summary{border:1px solid #d7dfe7;border-radius:10px;padding:10px;margin:10px 0;background:#fff;font-size:12px;line-height:1.45}.sync-summary[data-tone=ok]{border-color:#92beac;background:#f3faf6}.sync-summary[data-tone=issue]{border-color:#dcaa70;background:#fff7ed}.sync-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:5px 8px}.sync-heading strong{font-size:13px}.sync-summary button{min-height:34px;padding:5px 8px;font-size:12px}.sync-health{font-weight:650;margin-top:4px}.sync-summary[data-tone=ok] .sync-health{color:#116952}.sync-summary[data-tone=issue] .sync-health{color:#8a490e}.sync-detail,.sync-timing{margin-top:4px;color:#4e5a6d;overflow-wrap:anywhere}.sync-detail{white-space:pre-line}.sync-error{margin-top:4px;color:#8a490e;overflow-wrap:anywhere}.sync-error:empty{display:none}
     .email-picker{position:fixed;display:flex;flex-direction:column;gap:5px;padding:8px;background:#fff;color:#172238;border:1px solid #b8cec5;border-radius:12px;box-shadow:0 8px 28px #0003;overflow:auto;overscroll-behavior:contain}.email-picker[hidden]{display:none}.email-picker[data-placement=above]{transform:translateY(-100%)}.email-picker header{gap:6px;flex:0 0 auto}.email-picker h3{margin:0;font-size:14px}.email-picker .email-close{min-height:32px;min-width:32px;padding:2px 7px;font-size:20px;border:0}.email-hint{font-size:11px;color:#657084;line-height:1.35}.email-options{display:grid;gap:3px;overflow:auto;overscroll-behavior:contain;min-height:48px;flex:1 1 auto}.email-option{width:100%;min-height:48px;padding:7px 9px;border-radius:8px;text-align:left;flex:0 0 auto}.email-option .account-top{font-size:13px;gap:4px}.email-option .account-email{font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.email-options p{margin:4px;font-size:12px}.email-footer{display:flex;gap:5px;justify-content:space-between;flex:0 0 auto}.email-footer button{font-size:12px;min-height:32px;padding:5px 8px}.email-status{font-size:12px;color:#8a490e;line-height:1.35;overflow-wrap:anywhere}.email-status:empty{display:none}
@@ -1271,10 +1281,12 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   const url = field('Profile link', 'input', { id: 'contact-url', type: 'url', placeholder: 'https://livuapp.com/profile/…', required: '', autocomplete: 'off' });
   const notes = field('Note (optional)', 'textarea', { id: 'contact-note', maxlength: '1500', rows: '2' });
   const country = field('Country (optional)', 'input', { id: 'contact-country', maxlength: '80', autocomplete: 'off' });
+  const city = field('City (optional)', 'input', { id: 'contact-city', maxlength: '80', autocomplete: 'off', list: 'contact-cities' });
+  const citySuggestions = el('datalist', '', { id: 'contact-cities' }); form.append(citySuggestions);
   const formActions = el('div', '', { class: 'actions' });
   const save = button('Save contact', saveContact, 'primary');
   formActions.append(save, button('Use this page', () => {
-    try { const item = detectProfile(); url.value = item.url; name.value = item.name; country.value = item.country || ''; name.focus(); }
+    try { const item = detectProfile(); url.value = item.url; name.value = item.name; country.value = item.country || ''; city.value = all.find(row => row.url === item.url)?.city || ''; name.focus(); }
     catch (_) { status.textContent = 'Use LivU’s Share / Copy profile link, then paste it here.'; url.focus(); }
   }));
   form.append(formActions);
@@ -1282,15 +1294,17 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   manual.append(form); panel.append(manual);
   const title = el('h3', 'Saved contacts ');
   const count = el('span', '', { id: 'count' }); title.append(count);
-  const search = el('input', '', { type: 'search', placeholder: 'Search name, country, note or profile ID', 'aria-label': 'Search contacts' });
+  const search = el('input', '', { type: 'search', placeholder: 'Search name, country, city, note or profile ID', 'aria-label': 'Search contacts' });
   const sort = el('select', '', { 'aria-label': 'Sort contacts' });
   sort.append(el('option', 'Recently saved', { value: 'recent' }), el('option', 'Name A–Z', { value: 'name' }), el('option', 'Manual order', { value: 'manual' }));
   const countryFilter = el('select', '', { 'aria-label': 'Filter contacts by country' });
+  const cityFilter = el('select', '', { 'aria-label': 'Filter contacts by city' });
+  const cityLabel = el('label', 'City'); cityLabel.append(cityFilter);
   const filters = el('div', '', { class: 'contact-filters' });
   const countryLabel = el('label', 'Country'); countryLabel.append(countryFilter);
   const sortLabel = el('label', 'Sort'); sortLabel.append(sort);
-  filters.append(countryLabel, sortLabel);
-  let countryOptions = '';
+  filters.append(countryLabel, cityLabel, sortLabel);
+  let countryOptions = '', cityOptions = null;
   const list = el('div', '', { class: 'list contact-list' });
   const presenceTools = el('div', '', { class: 'presence-tools' });
   const onlineOnly = el('input', '', { type: 'checkbox', 'aria-label': 'Online only' });
@@ -1338,7 +1352,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   const greetingActions = el('div', '', { class: 'actions' });
   greetingActions.append(greetingButton, greetingStop);
   greetingTools.append(greetingSender, selectionTools,
-    el('p', 'Select all / top 5 / top 20 uses this search, country, sort and Online only filter. Already greeted or unconfirmed contacts are skipped. Busy and unknown are excluded when filtering.', { class: 'muted selection-hint' }), greetingActions,
+    el('p', 'Select all / top 5 / top 20 uses this search, country, city, sort and Online only filter. Already greeted or unconfirmed contacts are skipped. Busy and unknown are excluded when filtering.', { class: 'muted selection-hint' }), greetingActions,
     autoApproveLabel, approvalHint);
   const paidBox = el('dialog', '', { class: 'greeting-approval', 'aria-labelledby': 'livu-greeting-approval-title' });
   const paidTitle = el('h3', 'Send selam?', { id: 'livu-greeting-approval-title' });
@@ -1358,6 +1372,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     });
   });
   countryFilter.addEventListener('change', render);
+  cityFilter.addEventListener('change', render);
   const tools = el('details'); tools.append(el('summary', 'Notion & backup'));
   const connection = el('p', '', { class: 'muted' });
   tools.append(connection);
@@ -1923,12 +1938,12 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     currentName.textContent = item ? (saved ? 'In your contacts: ' : 'Current profile: ') +
       (all.find(x => x.url === item.url)?.name || item.name) : message;
     for (const control of [quickButton, quickFloat]) {
-      control.textContent = saved ? '✓' : '+';
-      const label = saved ? 'Contact saved' : 'Save this contact';
+      control.textContent = saved ? '−' : '+';
+      const label = saved ? 'Delete this contact' : 'Save this contact';
       control.setAttribute('aria-label', label);
       control.title = label;
     }
-    quickButton.disabled = quickFloat.disabled = busy || syncing || greetingBusy || !item || saved;
+    quickButton.disabled = quickFloat.disabled = busy || syncing || greetingBusy || !item;
     quickFloat.hidden = !panel.hidden || !accountPanel.hidden || !item;
     updateGreetingControls();
     document.dispatchEvent(new Event('livu-contacts-changed'));
@@ -1974,6 +1989,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     accountConnectButton.disabled = accountReuseButton.disabled = accountDisconnectButton.disabled = importFile.disabled = accountSyncing || accountBusy || greetingBusy;
     const selectionBusy = greetingBusy || presenceBusy || contactsRefreshing || busy || syncing || accountBusy || approvalPreferenceBusy || layoutBusy;
     countryFilter.disabled = selectionBusy;
+    cityFilter.disabled = selectionBusy;
     sort.disabled = selectionBusy;
     for (const control of list.querySelectorAll('[data-layout-control]')) control.disabled = selectionBusy || control.dataset.edge === 'true';
     const selectable = visibleContacts().some(item => !rememberedGreeting(item));
@@ -2163,9 +2179,10 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       (mode === 'name' ? a.name.localeCompare(b.name) : (b.savedAt || '').localeCompare(a.savedAt || '') || a.name.localeCompare(b.name)) || a.url.localeCompare(b.url));
   }
   function visibleContacts() {
-    const term = search.value.trim().toLocaleLowerCase();
+    const term = foldSearch(search.value);
     return sortedContacts(presenceFiltered(all.filter(x => (!countryFilter.value || countryInfo(x.country).key === countryFilter.value) &&
-      (x.name + ' ' + (x.country || '') + ' ' + countryInfo(x.country).label + ' ' + x.notes + ' ' + x.url + ' ' + profileLabel(x.url)).toLocaleLowerCase().includes(term)), onlineOnly.checked, presence, greetingAccount));
+      (!cityFilter.value || (foldSearch(x.city) || '__missing__') === cityFilter.value) &&
+      foldSearch(x.name + ' ' + (x.country || '') + ' ' + (x.city || '') + ' ' + countryInfo(x.country).label + ' ' + x.notes + ' ' + x.url + ' ' + profileLabel(x.url)).includes(term)), onlineOnly.checked, presence, greetingAccount));
   }
   function updateCountryOptions() {
     const countries = [...new Map(all.map(item => { const info = countryInfo(item.country); return [info.key, info]; })).values()]
@@ -2179,6 +2196,18 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       ...countries.map(info => el('option', info.label, { value: info.key })));
     countryFilter.value = countries.some(info => info.key === selected) ? selected : '';
   }
+  function updateCityOptions() {
+    const cities = [...new Map(all.filter(item => item.city).map(item => [foldSearch(item.city), item.city])).entries()]
+      .sort((a, b) => a[1].localeCompare(b[1]));
+    const signature = JSON.stringify(cities);
+    if (signature === cityOptions) return;
+    cityOptions = signature;
+    const selected = cityFilter.value;
+    cityFilter.replaceChildren(el('option', 'All cities', { value: '' }), el('option', 'No city', { value: '__missing__' }),
+      ...cities.map(([key, label]) => el('option', label, { value: key })));
+    cityFilter.value = selected === '__missing__' || cities.some(([key]) => key === selected) ? selected : '';
+    citySuggestions.replaceChildren(...cities.map(([, label]) => el('option', '', { value: label })));
+  }
   function rememberedGreeting(item) {
     return ['sent', 'sent-before', 'uncertain'].includes(greetingResults.get(item.url)?.state);
   }
@@ -2190,7 +2219,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     render();
   }
   function render() {
-    updateCountryOptions();
+    updateCountryOptions(); updateCityOptions();
     const items = visibleContacts();
     count.textContent = '(' + items.length + '/' + all.length + ')';
     const eligible = items;
@@ -2216,11 +2245,16 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       });
       const live = presence.get(item.url, greetingAccount);
       const identity = el('span', '', { class: 'contact-identity' });
-      identity.append(el('span', item.name, { class: 'name' }));
+      const heading = el('span', '', { class: 'contact-heading' });
+      heading.append(el('span', item.name, { class: 'name', title: item.name }));
       const location = countryInfo(item.country);
-      const badge = el('span', '', { class: 'contact-location', title: location.label });
-      badge.append(countryIcon(location), el('span', item.country ? location.label : 'Unknown', { class: 'contact-country' }));
-      identity.append(badge);
+      if (location.code) {
+        const badge = el('span', '', { class: 'contact-location', title: location.label });
+        badge.append(countryIcon(location), el('span', location.label, { class: 'contact-country' }));
+        heading.append(badge);
+      }
+      identity.append(heading);
+      if (item.city) identity.append(el('span', item.city, { class: 'contact-city' }));
       choice.append(checkbox, identity,
         el('span', live.label, { class: 'presence-badge', 'data-state': live.state,
           title: live.stale ? 'Status expired. Tap Refresh.' : live.at ? 'Checked ' + new Date(live.at).toLocaleTimeString() : 'Status has not been confirmed.' })); card.append(choice);
@@ -2248,7 +2282,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       actions.append(link('Open profile', normalizeProfile(item.url), 'open'), button('Copy link', () => action(async () => {
         if (!await GM.setClipboard(item.url, 'text/plain')) throw new Error('Clipboard unavailable. Try again from Safari.');
         status.textContent = 'Profile link copied.';
-      })), button('Edit', () => { manual.open = true; name.value = item.name; url.value = item.url; notes.value = item.notes; country.value = item.country || ''; name.focus(); form.scrollIntoView({ block: 'nearest' }); }),
+      })), button('Edit', () => { manual.open = true; name.value = item.name; url.value = item.url; notes.value = item.notes; country.value = item.country || ''; city.value = item.city || ''; name.focus(); form.scrollIntoView({ block: 'nearest' }); }),
       button('Delete', () => deleteContact(item)));
       footer.append(actions); card.append(footer);
       if (result) card.append(el('div', result.message, { class: 'greeting-result' + (['sent', 'sent-before'].includes(result.state) ? '' : ' issue') }));
@@ -2265,9 +2299,17 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   }
   async function quickAdd() {
     if (busy || syncing || greetingBusy) return;
+    let target;
+    try { target = detectProfile(); } catch (_) { return; }
+    const existing = all.find(item => item.url === target.url);
+    if (existing) {
+      const removed = await deleteContact(existing);
+      if (removed && panel.hidden) notify('Contact deleted.');
+      return;
+    }
     let created = false;
     const saved = await action(async () => {
-      const result = await store.quickSave(detectProfile());
+      const result = await store.quickSave(target);
       created = result.created;
       await refresh();
       status.textContent = result.created ? 'Contact saved. You can change its nickname or add a note with Edit.' :
@@ -2313,8 +2355,10 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     available() { return !busy && !syncing && !greetingBusy; },
     async remove(value, event) {
       const path = event?.composedPath?.() || [];
-      const preview = document.querySelector('livu-profile-preview');
-      if (!event?.isTrusted || !preview || !path.includes(preview) || path[0]?.dataset?.action !== 'delete-contact') {
+      const hosts = [document.querySelector('livu-profile-preview'), document.querySelector('livu-row-actions')];
+      const host = hosts.find(element => element && path.includes(element));
+      const button = path[0]?.closest?.('button[data-action="delete-contact"],button[data-action="add-contact"]');
+      if (!event?.isTrusted || !host || !button || button.getRootNode() !== host.shadowRoot) {
         throw new Error('Use Delete contact in the hover card.');
       }
       const target = hoveredContact(value);
@@ -2347,8 +2391,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   async function saveContact() {
     if (syncing) return;
     const saved = await action(async () => {
-      await store.save({ name: name.value, url: url.value, notes: notes.value, country: country.value });
-      name.value = ''; url.value = ''; notes.value = ''; country.value = '';
+      await store.save({ name: name.value, url: url.value, notes: notes.value, country: country.value, city: city.value });
+      name.value = ''; url.value = ''; notes.value = ''; country.value = ''; city.value = '';
       await refresh();
       status.textContent = 'Contact saved on this device.';
     });
@@ -3273,6 +3317,7 @@ const bridge = document.createElement("script"); bridge.textContent = "(() => {\
     rename: '<path d="m15 4 5 5M4 20l4-1L20 7a2 2 0 0 0-4-4L4 15z"/>',
     message: '<path d="M20 11a8 8 0 0 1-12 7l-5 2 2-5A8 8 0 1 1 20 11z"/>',
     add: '<path d="M12 5v14M5 12h14"/>',
+    remove: '<path d="M5 12h14"/>',
     pin: '<path d="m8 3 8 0-1 7 4 4H5l4-4zM12 14v7"/>',
     profile: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
     previous: '<path d="m15 5-7 7 7 7"/>', next: '<path d="m9 5 7 7-7 7"/>'
@@ -3352,10 +3397,15 @@ const bridge = document.createElement("script"); bridge.textContent = "(() => {\
     if (saved && target.item.country) target.api.observe({ ...target.item, id: target.id });
     const label = state?.pending ? t.savingContact : saved ? t.inContacts : t.addContact;
     contactButton.textContent = label;
+    if (compactContactButton.dataset.saved !== String(saved)) {
+      compactContactButton.dataset.saved = String(saved);
+      compactContactButton.innerHTML = svg(saved ? 'remove' : 'add');
+    }
     for (const button of contactButtons) {
-      button.disabled = !target || saved || Boolean(state?.pending) || !target.api.available();
-      button.title = state?.message || (!target ? t.profileWaiting : label);
-      button.setAttribute('aria-label', label);
+      button.disabled = !target || (saved && button === contactButton) || Boolean(state?.pending) || !target.api.available();
+      const accessible = button === compactContactButton && saved ? 'Delete contact' : label;
+      button.title = state?.message || (!target ? t.profileWaiting : accessible);
+      button.setAttribute('aria-label', accessible);
       button.setAttribute('aria-busy', String(Boolean(state?.pending)));
     }
     deleteButton.hidden = !saved;
@@ -3371,8 +3421,13 @@ const bridge = document.createElement("script"); bridge.textContent = "(() => {\
     const attempt = { ...target, pending: true, message: '' };
     contactSave = attempt; updateContactButton();
     try {
-      const result = await target.api.add({ id: target.id, url: target.item.url, name: target.item.name, country: target.item.country }, event);
-      attempt.message = result.created ? t.contactSaved : t.inContacts;
+      if (target.api.has(target.item.url)) {
+        const removed = await target.api.remove({ id: target.id, url: target.item.url, name: target.item.name }, event);
+        attempt.message = removed ? 'Contact deleted.' : '';
+      } else {
+        const result = await target.api.add({ id: target.id, url: target.item.url, name: target.item.name, country: target.item.country }, event);
+        attempt.message = result.created ? t.contactSaved : t.inContacts;
+      }
     } catch (error) { attempt.message = error.message || t.actionFailed; }
     finally {
       attempt.pending = false;

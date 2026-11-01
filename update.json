@@ -1,20 +1,20 @@
 {
   "schema_version": 1,
-  "version": "2.1.14",
-  "android_version_code": 27,
+  "version": "2.1.15",
+  "android_version_code": 28,
   "android": {
-    "url": "https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Helper-2.1.14.apk",
-    "sha256": "c84abe2a17f279f33b1007fef3882e9b930d7ecba4c334c6fc964b89d3984b7c",
-    "size": 78553
+    "url": "https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Helper-2.1.15.apk",
+    "sha256": "2ec84f92fb4d1cdad14b5d487bb5c83a01acb05516dd6404c69701b37f05d6af",
+    "size": 78556
   },
   "chrome": {
-    "url": "https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Chrome-Helper-2.1.14.zip",
-    "sha256": "4abcfdfc35d8a4e12b9e47ae08e483b586fa6a59c3a61531ae2a7c0b370c5205",
-    "size": 162266
+    "url": "https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Chrome-Helper-2.1.15.zip",
+    "sha256": "9f20c59be6b2a3990bccc2b819c7233cf4a16c409cf216e8713a161b5cb6ec17",
+    "size": 163846
   },
   "safari": {
     "url": "https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.user.js",
-    "sha256": "1d7def88a3d6d3d127fd507811c8f6b461237457f42f707a9b828dddd4dfdd4d",
-    "size": 496860
+    "sha256": "73602be06476c4712e770c19b085c5ffb4ac4c6bab0e0c9d8eaa62d28ea8c478",
+    "size": 501018
   }
 }

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LivU Contacts
 // @namespace    private.livu.helper
-// @version      2.1.14
+// @version      2.1.15
 // @updateURL    https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.meta.js
 // @downloadURL  https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.user.js
 // @connect      api.notion.com
@@ -63,7 +63,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 // Packaged update UI and data validation. Downloaded code is never executed here.
 (() => {
   'use strict';
-  const VERSION = '2.1.14';
+  const VERSION = '2.1.15';
   const MANIFEST_URL = 'https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/update.json';
   const BASE = MANIFEST_URL.slice(0, MANIFEST_URL.lastIndexOf('/') + 1);
   const LIMIT = 32768;
@@ -162,7 +162,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 (function () {
   'use strict';
 
-  const VERSION = '2.1.14';
+  const VERSION = '2.1.15';
   const SOURCE = '02804175-f91f-4143-a2d1-c430ccbc73b3';
   const NOTION = 'https://app.notion.com/p/623001463d3e4b24b69fc3ea8cb7a564';
   const PREFIX = 'livu.contact.';
@@ -176,6 +176,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
   const CONTACT_SYNC = 'livu.contacts.sync.status';
   const ACCOUNT_SYNC = 'livu.accounts.sync.status';
   const AUTO_APPROVE_COINS = 'livu.greetings.autoApproveCoins';
+  const CONTACT_LAYOUT = 'livu.contacts.layout';
   const ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 /* Bundled country-flag-icons:
 (The MIT License)
@@ -1175,6 +1176,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   let contactsRefreshing = false, autoApproveEnabled = false, approvalPreferenceBusy = true;
   let contactsConnected = false, accountsConnected = false;
   let all = [];
+  let layout = { pinned: [], order: [], sort: 'recent' }, layoutBusy = false;
   const countryObservations = new Set();
   const host = document.createElement('div');
   host.id = 'livu-private-contacts';
@@ -1282,7 +1284,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   const count = el('span', '', { id: 'count' }); title.append(count);
   const search = el('input', '', { type: 'search', placeholder: 'Search name, country, note or profile ID', 'aria-label': 'Search contacts' });
   const sort = el('select', '', { 'aria-label': 'Sort contacts' });
-  sort.append(el('option', 'Recently saved', { value: 'recent' }), el('option', 'Name A–Z', { value: 'name' }));
+  sort.append(el('option', 'Recently saved', { value: 'recent' }), el('option', 'Name A–Z', { value: 'name' }), el('option', 'Manual order', { value: 'manual' }));
   const countryFilter = el('select', '', { 'aria-label': 'Filter contacts by country' });
   const filters = el('div', '', { class: 'contact-filters' });
   const countryLabel = el('label', 'Country'); countryLabel.append(countryFilter);
@@ -1346,9 +1348,15 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   paidActions.append(paidConfirm, button('Cancel', () => resolvePaidApproval(false)));
   paidBox.append(paidTitle, paidText, paidActions); greetingTools.append(paidBox);
   paidBox.addEventListener('cancel', event => { event.preventDefault(); resolvePaidApproval(false); });
-  panel.append(title, search, filters, presenceTools, presenceInfo, greetingTools, list);
+  panel.append(title, search, filters, el('p', 'Pinned contacts stay first. Choose Manual order to move cards with ↑ ↓. Saved in this browser.', { class: 'muted selection-hint' }), presenceTools, presenceInfo, greetingTools, list);
   search.addEventListener('input', render);
-  sort.addEventListener('change', render);
+  sort.addEventListener('change', () => {
+    const mode = sort.value;
+    changeLayout(next => {
+      if (mode === 'manual' && !next.order.length) next.order = sortedContacts(all, next, next.sort).map(item => item.url);
+      next.sort = mode;
+    });
+  });
   countryFilter.addEventListener('change', render);
   const tools = el('details'); tools.append(el('summary', 'Notion & backup'));
   const connection = el('p', '', { class: 'muted' });
@@ -1947,7 +1955,13 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     syncButton.textContent = syncing || contactsRefreshing || presenceBusy ? 'Refreshing…' : 'Refresh';
     updateGreetingControls();
   }
-  async function refresh() { all = await store.all(); render(); updateCurrent(); await showConnection(); }
+  async function refresh() {
+    all = await store.all();
+    await layoutLocked(async () => {
+      if (!layoutBusy) { layout = cleanLayout(await GM.getValue(CONTACT_LAYOUT)); sort.value = layout.sort; }
+    });
+    render(); updateCurrent(); await showConnection();
+  }
   function updateGreetingControls() {
     syncButton.disabled = contactsRefreshing || presenceBusy || syncing || busy || greetingBusy || accountBusy;
     syncButton.textContent = syncing || contactsRefreshing || presenceBusy ? 'Refreshing…' : 'Refresh';
@@ -1958,8 +1972,10 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     accountSyncButton.disabled = !accountsConnected || accountSyncing || accountBusy || greetingBusy;
     emailRefresh.disabled = !accountsConnected || accountSyncing || accountBusy || greetingBusy;
     accountConnectButton.disabled = accountReuseButton.disabled = accountDisconnectButton.disabled = importFile.disabled = accountSyncing || accountBusy || greetingBusy;
-    const selectionBusy = greetingBusy || presenceBusy || contactsRefreshing || busy || syncing || accountBusy || approvalPreferenceBusy;
+    const selectionBusy = greetingBusy || presenceBusy || contactsRefreshing || busy || syncing || accountBusy || approvalPreferenceBusy || layoutBusy;
     countryFilter.disabled = selectionBusy;
+    sort.disabled = selectionBusy;
+    for (const control of list.querySelectorAll('[data-layout-control]')) control.disabled = selectionBusy || control.dataset.edge === 'true';
     const selectable = visibleContacts().some(item => !rememberedGreeting(item));
     selectAll.disabled = selectTop5.disabled = selectTop20.disabled = selectionBusy || !selectable;
     clearSelection.disabled = selectionBusy || !selectedContacts.size;
@@ -2107,9 +2123,44 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     const resolve = paidApproval; paidApproval = null; if (paidBox.open) paidBox.close();
     if (resolve) resolve(approved);
   }
-  function sortedContacts(items) {
-    return [...items].sort((a, b) => sort.value === 'name' ? a.name.localeCompare(b.name) :
-      (b.savedAt || '').localeCompare(a.savedAt || '') || a.name.localeCompare(b.name));
+  function cleanLayout(value) {
+    const urls = list => [...new Set((Array.isArray(list) ? list : []).slice(0, 10000).flatMap(url => {
+      try { return typeof url === 'string' ? [normalizeProfile(url)] : []; } catch (_) { return []; }
+    }))];
+    return { pinned: urls(value?.pinned), order: urls(value?.order), sort: ['recent', 'name', 'manual'].includes(value?.sort) ? value.sort : 'recent' };
+  }
+  function layoutLocked(fn) {
+    return navigator.locks?.request ? navigator.locks.request('livu-contact-layout', fn) : fn();
+  }
+  async function changeLayout(change) {
+    if (layoutBusy || greetingBusy || presenceBusy || contactsRefreshing || busy || syncing || accountBusy) { sort.value = layout.sort; return; }
+    layoutBusy = true; updateGreetingControls();
+    try {
+      await layoutLocked(async () => {
+        const next = cleanLayout(await GM.getValue(CONTACT_LAYOUT));
+        change(next);
+        const updated = cleanLayout(next);
+        await GM.setValue(CONTACT_LAYOUT, updated);
+        layout = updated;
+      });
+    } catch (_) { status.textContent = 'Could not save contact pins or order. Try again.'; }
+    finally { layoutBusy = false; sort.value = layout.sort; render(); }
+  }
+  function moveContact(item, neighbor) {
+    return changeLayout(next => {
+      if (next.sort !== 'manual' || next.pinned.includes(item.url) !== next.pinned.includes(neighbor.url)) return;
+      const order = sortedContacts(all, next, 'manual').map(row => row.url);
+      const from = order.indexOf(item.url), to = order.indexOf(neighbor.url);
+      if (from < 0 || to < 0) return;
+      [order[from], order[to]] = [order[to], order[from]];
+      next.order = order;
+    });
+  }
+  function sortedContacts(items, prefs = layout, mode = sort.value) {
+    const pinned = new Set(prefs.pinned), ranks = new Map(prefs.order.map((url, index) => [url, index]));
+    return [...items].sort((a, b) => Number(pinned.has(b.url)) - Number(pinned.has(a.url)) ||
+      (mode === 'manual' ? (ranks.get(a.url) ?? Infinity) - (ranks.get(b.url) ?? Infinity) : 0) ||
+      (mode === 'name' ? a.name.localeCompare(b.name) : (b.savedAt || '').localeCompare(a.savedAt || '') || a.name.localeCompare(b.name)) || a.url.localeCompare(b.url));
   }
   function visibleContacts() {
     const term = search.value.trim().toLocaleLowerCase();
@@ -2132,7 +2183,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     return ['sent', 'sent-before', 'uncertain'].includes(greetingResults.get(item.url)?.state);
   }
   function selectVisibleContacts(limit = Infinity) {
-    if (greetingBusy || presenceBusy || contactsRefreshing || busy || syncing || accountBusy) return;
+    if (greetingBusy || presenceBusy || contactsRefreshing || busy || syncing || accountBusy || layoutBusy) return;
     const items = visibleContacts().filter(item => !rememberedGreeting(item)).slice(0, limit);
     selectedContacts.clear();
     for (const item of items) selectedContacts.add(item.url);
@@ -2177,6 +2228,23 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       const footer = el('div', '', { class: 'contact-footer' });
       footer.append(el('div', dirty(item) ? 'Awaiting sync' : 'Synced', { class: 'rowstatus', title: dirty(item) ? 'Saved here · awaiting Notion sync' : 'Synced with Notion' }));
       const actions = el('div', '', { class: 'actions' });
+      const pinned = layout.pinned.includes(item.url);
+      const pin = button(pinned ? 'Unpin' : 'Pin', () => changeLayout(next => {
+        next.pinned = next.pinned.includes(item.url) ? next.pinned.filter(url => url !== item.url) : [...next.pinned, item.url];
+      }));
+      pin.setAttribute('aria-label', (pinned ? 'Unpin ' : 'Pin ') + item.name);
+      pin.setAttribute('aria-pressed', String(pinned)); pin.dataset.layoutControl = '';
+      if (pinned) { pin.classList.add('primary'); card.dataset.pinned = 'true'; }
+      actions.append(pin);
+      if (sort.value === 'manual') {
+        const group = items.filter(row => layout.pinned.includes(row.url) === pinned), index = group.indexOf(item);
+        for (const [direction, symbol, neighbor] of [['up', '↑', group[index - 1]], ['down', '↓', group[index + 1]]]) {
+          const move = button(symbol, () => neighbor && moveContact(item, neighbor));
+          move.setAttribute('aria-label', 'Move ' + item.name + ' ' + direction);
+          move.title = 'Move ' + direction + ' among visible ' + (pinned ? 'pinned' : 'unpinned') + ' contacts';
+          move.dataset.layoutControl = ''; move.dataset.edge = String(!neighbor); actions.append(move);
+        }
+      }
       actions.append(link('Open profile', normalizeProfile(item.url), 'open'), button('Copy link', () => action(async () => {
         if (!await GM.setClipboard(item.url, 'text/plain')) throw new Error('Clipboard unavailable. Try again from Safari.');
         status.textContent = 'Profile link copied.';

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LivU Contacts
 // @namespace    private.livu.helper
-// @version      2.1.17
+// @version      2.1.18
 // @updateURL    https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.meta.js
 // @downloadURL  https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.user.js
 // @connect      api.notion.com
@@ -63,7 +63,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 // Packaged update UI and data validation. Downloaded code is never executed here.
 (() => {
   'use strict';
-  const VERSION = '2.1.17';
+  const VERSION = '2.1.18';
   const MANIFEST_URL = 'https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/update.json';
   const BASE = MANIFEST_URL.slice(0, MANIFEST_URL.lastIndexOf('/') + 1);
   const LIMIT = 32768;
@@ -162,7 +162,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 (function () {
   'use strict';
 
-  const VERSION = '2.1.17';
+  const VERSION = '2.1.18';
   const SOURCE = '02804175-f91f-4143-a2d1-c430ccbc73b3';
   const NOTION = 'https://app.notion.com/p/623001463d3e4b24b69fc3ea8cb7a564';
   const PREFIX = 'livu.contact.';
@@ -1354,9 +1354,11 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   selectionTools.append(selectAll, selectTop5, selectTop20, clearSelection);
   const greetingActions = el('div', '', { class: 'actions' });
   greetingActions.append(greetingButton, greetingStop);
-  greetingTools.append(greetingSender, selectionTools,
-    el('p', 'Select all / top 5 / top 20 uses this search, country, city, sort and Online only filter. Already greeted or unconfirmed contacts are skipped. Busy and unknown are excluded when filtering.', { class: 'muted selection-hint' }), greetingActions,
+  greetingTools.append(greetingSender,
+    el('p', 'Select all / top 5 / top 20 uses this search, country, city, sort and Online only filter. Already greeted or unconfirmed contacts are skipped. Busy and unknown are excluded when filtering.', { class: 'muted selection-hint' }),
     autoApproveLabel, approvalHint);
+  const contactMessaging = el('div', '', { class: 'contact-messaging' });
+  contactMessaging.append(selectionTools, greetingActions);
   const paidBox = el('dialog', '', { class: 'greeting-approval', 'aria-labelledby': 'livu-greeting-approval-title' });
   const paidTitle = el('h3', 'Send selam?', { id: 'livu-greeting-approval-title' });
   const paidText = el('p');
@@ -1366,7 +1368,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   paidBox.append(paidTitle, paidText, paidActions); panel.append(paidBox);
   paidBox.addEventListener('cancel', event => { event.preventDefault(); resolvePaidApproval(false); });
   contactTools.append(presenceInfo, greetingTools, el('p', 'Pinned contacts stay first. Choose Manual order to move cards with ↑ ↓. Saved in this browser.', { class: 'muted selection-hint' }));
-  panel.append(title, search, filters, presenceTools, list);
+  panel.append(title, search, filters, presenceTools, contactMessaging, list);
   search.addEventListener('input', render);
   sort.addEventListener('change', () => {
     const mode = sort.value;

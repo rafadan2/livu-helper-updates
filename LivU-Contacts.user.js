@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LivU Contacts
 // @namespace    private.livu.helper
-// @version      2.1.16
+// @version      2.1.17
 // @updateURL    https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.meta.js
 // @downloadURL  https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/LivU-Contacts.user.js
 // @connect      api.notion.com
@@ -63,7 +63,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 // Packaged update UI and data validation. Downloaded code is never executed here.
 (() => {
   'use strict';
-  const VERSION = '2.1.16';
+  const VERSION = '2.1.17';
   const MANIFEST_URL = 'https://raw.githubusercontent.com/rafadan2/livu-helper-updates/main/update.json';
   const BASE = MANIFEST_URL.slice(0, MANIFEST_URL.lastIndexOf('/') + 1);
   const LIMIT = 32768;
@@ -162,7 +162,7 @@ const LivuExtension = typeof window === 'undefined' || typeof GM === 'undefined'
 (function () {
   'use strict';
 
-  const VERSION = '2.1.16';
+  const VERSION = '2.1.17';
   const SOURCE = '02804175-f91f-4143-a2d1-c430ccbc73b3';
   const NOTION = 'https://app.notion.com/p/623001463d3e4b24b69fc3ea8cb7a564';
   const PREFIX = 'livu.contact.';
@@ -1208,7 +1208,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     .notice{max-width:min(360px,calc(100vw - 32px));margin:0 0 10px auto;padding:10px 12px;border:1px solid #d7dfe7;border-radius:12px;background:#e9f2ef;color:#172238;box-shadow:0 4px 20px #0003;font-size:13px;overflow-wrap:anywhere}.notice[hidden]{display:none}
     .account-balance{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}.account-gift{display:inline-flex;align-items:center;justify-content:center;min-width:18px;font-size:15px;font-weight:650;line-height:1.2;color:#657084}.account-coins{color:#116952;font-weight:650}.account-email{font-size:14px;overflow-wrap:anywhere;margin-top:5px}.account-selected{border-color:#166d59;background:#f3faf6}.account-top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.account-help{font-size:13px}#account-toggle{background:#fff;color:#166d59;font-weight:650}input[type=file]{font-size:13px}small{font-size:12px}
     .contact-choice{display:flex;align-items:center;gap:10px;margin:0;cursor:pointer}.contact-choice input{width:22px;height:22px;flex:0 0 auto;padding:0;accent-color:#166d59}.greeting-tools{padding:10px 0}.greeting-result{font-size:13px;line-height:1.4;color:#166d59;margin-top:8px;white-space:pre-line}.greeting-result.issue{color:#8a490e}
-    .contact-list{grid-template-columns:minmax(0,1fr);gap:6px;margin-top:6px}.contact-card{min-width:0;padding:8px 10px;border-radius:9px}.contact-card .contact-choice{gap:8px;font-size:14px;min-height:24px}.contact-card .note{margin-top:3px}.contact-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 8px;margin-top:3px}.contact-footer .rowstatus{margin:0}.contact-card .actions{gap:4px;margin:0}.contact-card .actions button,.contact-card a.open{font-size:12px;min-height:26px;padding:3px 6px;border-radius:5px}.contact-card .greeting-result{font-size:12px;margin-top:4px}.selection-tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.selection-tools button{font-size:13px;min-height:36px;padding:6px 10px}.selection-hint{font-size:12px;margin:5px 0 0}
+    .contact-list{grid-template-columns:minmax(0,1fr);gap:6px;margin-top:6px}.contact-card{min-width:0;padding:8px 10px;border-radius:9px}.contact-card .contact-choice{gap:8px;font-size:14px;min-height:24px}.contact-card .note{margin-top:3px}.contact-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 8px;margin-top:3px}.contact-footer .rowstatus{margin:0}.contact-tools{margin-top:6px;padding-top:6px}.contact-tools>summary{font-size:13px;min-height:30px}.contact-indicators{display:inline-flex;align-items:center;gap:5px;flex:none;margin-left:auto}.contact-sync{font-size:13px;font-weight:700;color:#166d59;line-height:1}.contact-sync[data-state=pending]{color:#8a490e}.contact-card .actions{gap:4px;margin:0}.contact-card .actions button,.contact-card a.open{font-size:12px;min-height:26px;padding:3px 6px;border-radius:5px}.contact-card .greeting-result{font-size:12px;margin-top:4px}.selection-tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.selection-tools button{font-size:13px;min-height:36px;padding:6px 10px}.selection-hint{font-size:12px;margin:5px 0 0}
     .presence-tools{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px}.presence-tools label{display:flex;align-items:center;gap:7px;font-size:13px;margin:0;min-height:36px}.presence-tools input{width:20px;height:20px;margin:0;accent-color:#166d59}.presence-tools button{font-size:12px;min-height:34px;padding:5px 8px}.presence-info{font-size:12px;margin:4px 0;color:#657084}.presence-badge{margin-left:auto;flex:0 0 auto;font-size:11px;font-weight:500;padding:2px 6px;border-radius:12px;background:#eff1f4;color:#657084}.presence-badge[data-state=online]{background:#e1f4e9;color:#11613d}.presence-badge[data-state=busy]{background:#fff1db;color:#8a490e}.contact-choice .name{min-width:0}
     .sync-summary{border:1px solid #d7dfe7;border-radius:10px;padding:10px;margin:10px 0;background:#fff;font-size:12px;line-height:1.45}.sync-summary[data-tone=ok]{border-color:#92beac;background:#f3faf6}.sync-summary[data-tone=issue]{border-color:#dcaa70;background:#fff7ed}.sync-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:5px 8px}.sync-heading strong{font-size:13px}.sync-summary button{min-height:34px;padding:5px 8px;font-size:12px}.sync-health{font-weight:650;margin-top:4px}.sync-summary[data-tone=ok] .sync-health{color:#116952}.sync-summary[data-tone=issue] .sync-health{color:#8a490e}.sync-detail,.sync-timing{margin-top:4px;color:#4e5a6d;overflow-wrap:anywhere}.sync-detail{white-space:pre-line}.sync-error{margin-top:4px;color:#8a490e;overflow-wrap:anywhere}.sync-error:empty{display:none}
     .email-picker{position:fixed;display:flex;flex-direction:column;gap:5px;padding:8px;background:#fff;color:#172238;border:1px solid #b8cec5;border-radius:12px;box-shadow:0 8px 28px #0003;overflow:auto;overscroll-behavior:contain}.email-picker[hidden]{display:none}.email-picker[data-placement=above]{transform:translateY(-100%)}.email-picker header{gap:6px;flex:0 0 auto}.email-picker h3{margin:0;font-size:14px}.email-picker .email-close{min-height:32px;min-width:32px;padding:2px 7px;font-size:20px;border:0}.email-hint{font-size:11px;color:#657084;line-height:1.35}.email-options{display:grid;gap:3px;overflow:auto;overscroll-behavior:contain;min-height:48px;flex:1 1 auto}.email-option{width:100%;min-height:48px;padding:7px 9px;border-radius:8px;text-align:left;flex:0 0 auto}.email-option .account-top{font-size:13px;gap:4px}.email-option .account-email{font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.email-options p{margin:4px;font-size:12px}.email-footer{display:flex;gap:5px;justify-content:space-between;flex:0 0 auto}.email-footer button{font-size:12px;min-height:32px;padding:5px 8px}.email-status{font-size:12px;color:#8a490e;line-height:1.35;overflow-wrap:anywhere}.email-status:empty{display:none}
@@ -1261,15 +1261,18 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   const headerActions = el('div', '', { class: 'actions' });
   headerActions.append(syncButton, button('Close', close));
   header.append(heading, headerActions);
-  panel.append(header, el('p', 'Save once. Open with whichever LivU account you’re signed into.', { class: 'muted' }));
+  const contactTools = el('details', '', { class: 'contact-tools' });
+  contactTools.append(el('summary', 'Tools, status & settings'));
+  panel.append(header, contactTools);
+  contactTools.append(el('p', 'Save once. Open with whichever LivU account you’re signed into.', { class: 'muted' }));
   const status = el('p', '', { class: 'status', role: 'status', 'aria-live': 'polite' });
   const contactSyncSummary = syncSummary('Contacts Notion', null,
     'Auto-refresh: opening Contacts or saving a contact. No timed background refresh.');
-  panel.append(contactSyncSummary.box, status);
+  contactTools.append(contactSyncSummary.box, status);
   const currentCard = el('div', '', { class: 'current' });
   const currentName = el('p', '', { class: 'muted' });
   const quickButton = button('+', quickAdd, 'primary quick-add');
-  currentCard.append(currentName, quickButton); panel.append(currentCard);
+  currentCard.append(currentName, quickButton); contactTools.append(currentCard);
   const manual = el('details'); manual.append(el('summary', 'Add by link / edit contact'));
   const form = el('form');
   function field(label, tag, attributes) {
@@ -1291,7 +1294,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   }));
   form.append(formActions);
   form.addEventListener('submit', event => { event.preventDefault(); if (event.isTrusted) saveContact(); });
-  manual.append(form); panel.append(manual);
+  manual.append(form); contactTools.append(manual);
   const title = el('h3', 'Saved contacts ');
   const count = el('span', '', { id: 'count' }); title.append(count);
   const search = el('input', '', { type: 'search', placeholder: 'Search name, country, city, note or profile ID', 'aria-label': 'Search contacts' });
@@ -1360,9 +1363,10 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   const paidActions = el('div', '', { class: 'actions' });
   const paidConfirm = button('Approve & send', () => resolvePaidApproval(true), 'primary');
   paidActions.append(paidConfirm, button('Cancel', () => resolvePaidApproval(false)));
-  paidBox.append(paidTitle, paidText, paidActions); greetingTools.append(paidBox);
+  paidBox.append(paidTitle, paidText, paidActions); panel.append(paidBox);
   paidBox.addEventListener('cancel', event => { event.preventDefault(); resolvePaidApproval(false); });
-  panel.append(title, search, filters, el('p', 'Pinned contacts stay first. Choose Manual order to move cards with ↑ ↓. Saved in this browser.', { class: 'muted selection-hint' }), presenceTools, presenceInfo, greetingTools, list);
+  contactTools.append(presenceInfo, greetingTools, el('p', 'Pinned contacts stay first. Choose Manual order to move cards with ↑ ↓. Saved in this browser.', { class: 'muted selection-hint' }));
+  panel.append(title, search, filters, presenceTools, list);
   search.addEventListener('input', render);
   sort.addEventListener('change', () => {
     const mode = sort.value;
@@ -1494,8 +1498,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   const updater = globalThis.LivuUpdates;
   const updateOptions = { platform: LivuPlatform ? 'chrome' : 'safari',
     request: LivuPlatform ? updater.chromeManifest : () => updater.fetchManifest() };
-  updater.mount(panel, updateOptions); updater.mount(accountSettings, updateOptions);
-  panel.append(tools); root.append(panel, accountPanel, emailTrigger, emailPicker, notice, toolbar); document.documentElement.append(host);
+  updater.mount(contactTools, updateOptions); updater.mount(accountSettings, updateOptions);
+  contactTools.append(tools); root.append(panel, accountPanel, emailTrigger, emailPicker, notice, toolbar); document.documentElement.append(host);
 
   function dateLabel(value) { return value ? new Date(value).toLocaleString() : 'unknown'; }
   function updatePasswordState() { passwordState.textContent = accountsConnected ? 'Password source: the selected account in private Notion.' : sharedPassword ? 'Shared password ready for this tab.' : 'No password held in this tab. Email filling still works.'; }
@@ -2255,12 +2259,17 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       }
       identity.append(heading);
       if (item.city) identity.append(el('span', item.city, { class: 'contact-city' }));
-      choice.append(checkbox, identity,
+      const syncState = dirty(item) ? 'pending' : 'synced';
+      const indicators = el('span', '', { class: 'contact-indicators' });
+      indicators.append(el('span', syncState === 'synced' ? '✓' : '×', { class: 'contact-sync', 'data-state': syncState, role: 'img',
+        'aria-label': syncState === 'synced' ? 'Synced with Notion' : 'Awaiting Notion sync',
+        title: syncState === 'synced' ? 'Synced with Notion' : 'Saved here · awaiting Notion sync' }),
         el('span', live.label, { class: 'presence-badge', 'data-state': live.state,
-          title: live.stale ? 'Status expired. Tap Refresh.' : live.at ? 'Checked ' + new Date(live.at).toLocaleTimeString() : 'Status has not been confirmed.' })); card.append(choice);
+          title: live.stale ? 'Status expired. Tap Refresh.' : live.at ? 'Checked ' + new Date(live.at).toLocaleTimeString() : 'Status has not been confirmed.' }));
+      choice.append(checkbox, identity, indicators); card.append(choice);
       if (item.notes) card.append(el('div', item.notes, { class: 'note' }));
       const footer = el('div', '', { class: 'contact-footer' });
-      footer.append(el('div', dirty(item) ? 'Awaiting sync' : 'Synced', { class: 'rowstatus', title: dirty(item) ? 'Saved here · awaiting Notion sync' : 'Synced with Notion' }));
+
       const actions = el('div', '', { class: 'actions' });
       const pinned = layout.pinned.includes(item.url);
       const pin = button(pinned ? 'Unpin' : 'Pin', () => changeLayout(next => {
@@ -2282,7 +2291,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       actions.append(link('Open profile', normalizeProfile(item.url), 'open'), button('Copy link', () => action(async () => {
         if (!await GM.setClipboard(item.url, 'text/plain')) throw new Error('Clipboard unavailable. Try again from Safari.');
         status.textContent = 'Profile link copied.';
-      })), button('Edit', () => { manual.open = true; name.value = item.name; url.value = item.url; notes.value = item.notes; country.value = item.country || ''; city.value = item.city || ''; name.focus(); form.scrollIntoView({ block: 'nearest' }); }),
+      })), button('Edit', () => { contactTools.open = true; manual.open = true; name.value = item.name; url.value = item.url; notes.value = item.notes; country.value = item.country || ''; city.value = item.city || ''; name.focus(); form.scrollIntoView({ block: 'nearest' }); }),
       button('Delete', () => deleteContact(item)));
       footer.append(actions); card.append(footer);
       if (result) card.append(el('div', result.message, { class: 'greeting-result' + (['sent', 'sent-before'].includes(result.state) ? '' : ' issue') }));
@@ -2450,7 +2459,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   async function open() {
     const revision = ++panelRevision;
     accountPanel.hidden = true; accountToggle.setAttribute('aria-expanded', 'false');
-    panel.hidden = false; toggle.setAttribute('aria-expanded', 'true');
+    panel.hidden = false; panel.scrollTop = 0; toggle.setAttribute('aria-expanded', 'true');
     try {
       await approvalPreferenceReady;
       await refresh();
